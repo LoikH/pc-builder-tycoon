@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Architect Tycoon - Simulateur de Monteur de PC</title>
+    <!-- Google Fonts: Outfit & Fira Code for terminal-like text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-Oykd-aGF.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-ZKqAlgr7.css">
+</head>
+<body>
+    <div id="app">
+        <!-- TOP HUD -->
+        <header class="hud-bar">
+            <div class="hud-brand">
+                <span class="brand-glow">PC Architect</span>
+                <span class="brand-sub">Tycoon</span>
+            </div>
+            
+            <div class="hud-stats">
+                <div class="stat-box level-box">
+                    <div class="stat-label">Niveau</div>
+                    <div class="stat-value" id="hud-level">1</div>
+                    <div class="xp-bar-container">
+                        <div class="xp-bar-fill" id="hud-xp-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="xp-text" id="hud-xp-text">0 / 100 XP</div>
+                </div>
+
+                <div class="stat-box money-box">
+                    <div class="stat-label">Budget</div>
+                    <div class="stat-value" id="hud-money">1 500,00 $</div>
+                </div>
+
+                <div class="stat-box day-box">
+                    <div class="stat-label">Calendrier</div>
+                    <div class="stat-value" id="hud-day">Jour 1</div>
+                </div>
+            </div>
+
+            <div class="hud-actions">
+                <button id="btn-next-day" class="btn-primary glow-btn">
+                    <span>Terminer la journée</span>
+                    <small>Arrivée des livraisons</small>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="main-layout">
+            <!-- SIDEBAR NAVIGATION -->
+            <nav class="sidebar">
+                <button class="nav-item active" data-tab="emails">
+                    <span class="nav-icon">📧</span>
+                    <span class="nav-text">Emails & Commandes</span>
+                    <span class="nav-badge" id="badge-emails" style="display:none">0</span>
+                </button>
+                <button class="nav-item" data-tab="workbench">
+                    <span class="nav-icon">🔧</span>
+                    <span class="nav-text">Établi de Montage</span>
+                </button>
+                <button class="nav-item" data-tab="shop">
+                    <span class="nav-icon">🛒</span>
+                    <span class="nav-text">Boutique de Pièces</span>
+                </button>
+                <button class="nav-item" data-tab="inventory">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Mon Inventaire</span>
+                </button>
+                <button class="nav-item" data-tab="bargainbin">
+                    <span class="nav-icon">🔄</span>
+                    <span class="nav-text">BargainBin (Occasions)</span>
+                </button>
+            </nav>
+
+            <!-- PLAY VIEWPORT -->
+            <section class="viewport">
+                <!-- EMAILS TAB -->
+                <div class="tab-pane active" id="pane-emails">
+                    <!-- Dynamic rendering in emails.js -->
+                </div>
+
+                <!-- WORKBENCH TAB -->
+                <div class="tab-pane" id="pane-workbench">
+                    <!-- Dynamic rendering in workbench.js -->
+                </div>
+
+                <!-- SHOP TAB -->
+                <div class="tab-pane" id="pane-shop">
+                    <!-- Dynamic rendering in shop.js -->
+                </div>
+
+                <!-- INVENTORY TAB -->
+                <div class="tab-pane" id="pane-inventory">
+                    <!-- Dynamic rendering in inventory.js -->
+                </div>
+
+                <!-- BARGAINBIN TAB -->
+                <div class="tab-pane" id="pane-bargainbin">
+                    <!-- Dynamic rendering in bargainbin.js -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- NOTIFICATION SYSTEM -->
+    <div id="notification-container"></div>
+
+    <!-- MAIN GAME SCRIPTS -->
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "pc-architect-tycoon",
+  "version": "1.0.0",
+  "description": "Simulation game inspired by PC Building Simulator built with HTML, CSS, and modular JS",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}
