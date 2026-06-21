@@ -498,7 +498,8 @@ function startBenchmarkSimulation(body) {
         activePc.gpu.partId,
         activePc.ram.partId,
         cpuOverclockMult,
-        gpuOverclockMult
+        gpuOverclockMult,
+        activePc.rams
     );
 
     const progressFill = document.getElementById("bench-progress");

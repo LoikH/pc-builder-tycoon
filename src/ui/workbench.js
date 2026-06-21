@@ -4,7 +4,7 @@
 
 import { state, saveGame, generateUniqueId, updateActiveJobsRequirements } from "../state.js";
 import { showToast } from "../main.js";
-import { getComponentById } from "../components.js";
+import { getComponentById, getMotherboardSlots } from "../components.js";
 import { calculatePcBenchmark } from "../jobs.js";
 import { bootVirtualOs, closeVirtualOs } from "./virtualos.js";
 
@@ -18,6 +18,108 @@ export function renderWorkbenchTab() {
     // 1. SELECT CURRENT WORKBENCH PC
     const activeWb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
     currentOpenPc = activeWb ? activeWb.pc : null;
+
+    // AUTO-INITIALIZE RAM AND STORAGE SLOTS
+    if (currentOpenPc) {
+        const mbId = currentOpenPc.motherboard?.partId;
+        const maxSlots = getMotherboardSlots(mbId);
+        
+        // Ensure rams array is initialized with correct length
+        if (!currentOpenPc.rams) {
+            currentOpenPc.rams = new Array(maxSlots.ram).fill(null);
+            // Migrate legacy singular ram property to slot 0
+            if (currentOpenPc.ram) {
+                currentOpenPc.rams[0] = currentOpenPc.ram;
+            }
+        } else {
+            // Adjust array size if slot capacity changed (motherboard upgraded/downgraded)
+            if (currentOpenPc.rams.length !== maxSlots.ram) {
+                const oldRams = currentOpenPc.rams;
+                currentOpenPc.rams = new Array(maxSlots.ram).fill(null);
+                for (let i = 0; i < Math.min(oldRams.length, maxSlots.ram); i++) {
+                    currentOpenPc.rams[i] = oldRams[i];
+                }
+                // Return overflow items to inventory
+                for (let i = maxSlots.ram; i < oldRams.length; i++) {
+                    if (oldRams[i]) {
+                        state.inventory.push({
+                            id: generateUniqueId(),
+                            partId: oldRams[i].partId,
+                            condition: oldRams[i].condition,
+                            pricePaid: getComponentById(oldRams[i].partId).price
+                        });
+                    }
+                }
+            }
+        }
+        
+        // Ensure storages array is initialized (NVMe + SATA)
+        const totalStorageSlots = maxSlots.nvme + maxSlots.sata;
+        if (!currentOpenPc.storages) {
+            currentOpenPc.storages = new Array(totalStorageSlots).fill(null);
+            // Migrate legacy singular storage property to the correct slot category (NVMe vs SATA)
+            if (currentOpenPc.storage) {
+                const comp = getComponentById(currentOpenPc.storage.partId);
+                const isNVMe = comp && comp.specs.storageType === "NVMe M.2";
+                if (isNVMe && maxSlots.nvme > 0) {
+                    currentOpenPc.storages[0] = currentOpenPc.storage; // NVMe slot
+                } else {
+                    currentOpenPc.storages[maxSlots.nvme] = currentOpenPc.storage; // SATA slot
+                }
+            }
+        } else {
+            // Adjust array size if slot capacity changed
+            if (currentOpenPc.storages.length !== totalStorageSlots) {
+                const oldStorages = currentOpenPc.storages;
+                currentOpenPc.storages = new Array(totalStorageSlots).fill(null);
+                for (let i = 0; i < Math.min(oldStorages.length, totalStorageSlots); i++) {
+                    currentOpenPc.storages[i] = oldStorages[i];
+                }
+                // Return overflow items to inventory
+                for (let i = totalStorageSlots; i < oldStorages.length; i++) {
+                    if (oldStorages[i]) {
+                        state.inventory.push({
+                            id: generateUniqueId(),
+                            partId: oldStorages[i].partId,
+                            condition: oldStorages[i].condition,
+                            pricePaid: getComponentById(oldStorages[i].partId).price
+                        });
+                    }
+                }
+            }
+        }
+
+        // Self-healing check for existing saves: correct any misallocated storage types (e.g. SATA drive in M.2 slot)
+        for (let i = 0; i < totalStorageSlots; i++) {
+            const item = currentOpenPc.storages[i];
+            if (item) {
+                const comp = getComponentById(item.partId);
+                if (comp) {
+                    const isNVMe = comp.specs.storageType === "NVMe M.2";
+                    const isM2Slot = i < maxSlots.nvme;
+                    if (isM2Slot && !isNVMe) {
+                        // Move SATA drive from NVMe slot to first available SATA slot
+                        const firstEmptySata = currentOpenPc.storages.indexOf(null, maxSlots.nvme);
+                        if (firstEmptySata !== -1) {
+                            currentOpenPc.storages[firstEmptySata] = item;
+                            currentOpenPc.storages[i] = null;
+                        }
+                    } else if (!isM2Slot && isNVMe) {
+                        // Move NVMe drive from SATA slot to first available NVMe slot
+                        const firstEmptyM2 = currentOpenPc.storages.indexOf(null, 0);
+                        if (firstEmptyM2 !== -1 && firstEmptyM2 < maxSlots.nvme) {
+                            currentOpenPc.storages[firstEmptyM2] = item;
+                            currentOpenPc.storages[i] = null;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Keep legacy singular ram & storage properties in sync with first items for general compat
+        currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
+        currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
+    }
 
     const grid = document.createElement("div");
     grid.className = "workbench-grid";
@@ -37,6 +139,8 @@ export function renderWorkbenchTab() {
         `;
         grid.appendChild(caseView);
     } else {
+        const maxSlots = getMotherboardSlots(currentOpenPc.motherboard?.partId);
+        
         // Render slots
         caseView.innerHTML = `
             <div class="case-schematic">
@@ -46,33 +150,34 @@ export function renderWorkbenchTab() {
                     <span class="case-slot-partname">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : 'Emplacement Vide'}</span>
                 </div>
                 
-                <!-- CPU Slot (Nested visually in motherboard area) -->
+                <!-- CPU Slot (Nested visually in motherboard area, stacked, non-overlapping) -->
                 ${currentOpenPc.motherboard ? `
-                <div class="case-slot ${currentOpenPc.cpu ? 'filled' : ''}" id="slot-cpu" data-slot="cpu">
+                <div class="case-slot ${currentOpenPc.cpu ? 'filled' : ''}" id="slot-cpu" data-slot="cpu" style="top: 80px; left: 145px; width: 110px; height: 70px; z-index: 10;">
                     <span class="case-slot-label">CPU</span>
-                    <span class="case-slot-partname">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Emplacement Vide'}</span>
                 </div>
                 ` : ''}
 
-                <!-- CPU Cooler Slot (Overlays CPU) -->
+                <!-- CPU Cooler Slot (Stacked vertically below CPU, non-overlapping) -->
                 ${currentOpenPc.cpu ? `
-                <div class="case-slot ${currentOpenPc.cooler ? 'filled' : ''}" id="slot-cooler" data-slot="cooler">
-                    <span class="case-slot-label">Refroidissement</span>
-                    <span class="case-slot-partname">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Emplacement Vide'}</span>
+                <div class="case-slot ${currentOpenPc.cooler ? 'filled' : ''}" id="slot-cooler" data-slot="cooler" style="top: 155px; left: 145px; width: 110px; height: 70px; z-index: 10;">
+                    <span class="case-slot-label">Refroidisseur</span>
+                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Emplacement Vide'}</span>
                 </div>
                 ` : ''}
 
-                <!-- RAM Slot (Near CPU) -->
-                ${currentOpenPc.motherboard ? `
-                <div class="case-slot ${currentOpenPc.ram ? 'filled' : ''}" id="slot-ram" data-slot="ram">
-                    <span class="case-slot-label">RAM</span>
-                    <span class="case-slot-partname">${currentOpenPc.ram ? getComponentById(currentOpenPc.ram.partId).name : 'Emplacement Vide'}</span>
-                </div>
-                ` : ''}
+                <!-- Multi-slot RAM (DIMM slots to the right of CPU) -->
+                ${currentOpenPc.motherboard ? 
+                    currentOpenPc.rams.map((ramItem, idx) => `
+                        <div class="case-slot ram-slot ${ramItem ? 'filled' : ''}" id="slot-ram-${idx}" data-slot="ram" data-index="${idx}" title="${ramItem ? getComponentById(ramItem.partId).name : 'Slot RAM ' + (idx + 1)}" style="top: 80px; left: ${265 + idx * 25}px; width: 20px; height: 145px; z-index: 10;">
+                            <span class="case-slot-label" style="font-size: 0.55rem; line-height: 1;">R${idx + 1}</span>
+                        </div>
+                    `).join('') 
+                : ''}
 
                 <!-- GPU Slot (PCIe slot) -->
                 ${currentOpenPc.motherboard ? `
-                <div class="case-slot ${currentOpenPc.gpu ? 'filled' : ''}" id="slot-gpu" data-slot="gpu">
+                <div class="case-slot ${currentOpenPc.gpu ? 'filled' : ''}" id="slot-gpu" data-slot="gpu" style="top: 235px; left: 115px; width: 250px; height: 75px; z-index: 12;">
                     <span class="case-slot-label">Carte Graphique</span>
                     <span class="case-slot-partname">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : 'Emplacement Vide'}</span>
                 </div>
@@ -84,11 +189,30 @@ export function renderWorkbenchTab() {
                     <span class="case-slot-partname">${currentOpenPc.psu ? getComponentById(currentOpenPc.psu.partId).name : 'Emplacement Vide'}</span>
                 </div>
 
-                <!-- Disk Storage Slot -->
-                <div class="case-slot ${currentOpenPc.storage ? 'filled' : ''}" id="slot-storage" data-slot="storage">
-                    <span class="case-slot-label">Stockage</span>
-                    <span class="case-slot-partname">${currentOpenPc.storage ? getComponentById(currentOpenPc.storage.partId).name : 'Emplacement Vide'}</span>
-                </div>
+                <!-- Multi-slot Storage: NVMe on Motherboard -->
+                ${currentOpenPc.motherboard ? 
+                    new Array(maxSlots.nvme).fill(null).map((_, i) => {
+                        const storItem = currentOpenPc.storages[i];
+                        return `
+                            <div class="case-slot nvme-slot ${storItem ? 'filled' : ''}" id="slot-nvme-${i}" data-slot="storage" data-index="${i}" title="${storItem ? getComponentById(storItem.partId).name : 'Slot M.2 NVMe ' + (i + 1)}" style="top: ${155 + i * 18}px; left: 60px; width: 80px; height: 15px; z-index: 10; font-size: 0.55rem; padding: 0;">
+                                <span class="case-slot-label" style="font-size: 0.5rem; line-height: 1;">M.2_${i + 1}</span>
+                            </div>
+                        `;
+                    }).join('')
+                : ''}
+
+                <!-- Multi-slot Storage: SATA Drive Bays in Case bottom -->
+                ${new Array(maxSlots.sata).fill(null).map((_, i) => {
+                    const storIdx = maxSlots.nvme + i;
+                    const storItem = currentOpenPc.storages[storIdx];
+                    const col = i % 3;
+                    const row = Math.floor(i / 3);
+                    return `
+                        <div class="case-slot sata-slot ${storItem ? 'filled' : ''}" id="slot-sata-${i}" data-slot="storage" data-index="${storIdx}" title="${storItem ? getComponentById(storItem.partId).name : 'Slot SATA ' + (i + 1)}" style="top: ${380 + row * 45}px; left: ${40 + col * 55}px; width: 50px; height: 38px; font-size: 0.55rem; padding: 2px 0;">
+                            <span class="case-slot-label" style="font-size: 0.5rem; line-height: 1;">SATA_${i + 1}</span>
+                        </div>
+                    `;
+                }).join('')}
             </div>
             
             <!-- Virtual Screen overlay -->
@@ -124,6 +248,34 @@ export function renderWorkbenchTab() {
 
     // 2. PC Details and checklist
     if (currentOpenPc) {
+        // Render objective card if linked to an active job
+        const linkedJob = state.activeJobs.find(j => j.id === currentOpenPc.orderId);
+        if (linkedJob) {
+            const objectiveCard = document.createElement("div");
+            objectiveCard.className = "glass-panel workbench-details-card";
+            objectiveCard.style.border = "1px solid rgba(0, 240, 255, 0.25)";
+            objectiveCard.style.boxShadow = "inset 0 0 10px rgba(0, 240, 255, 0.05)";
+            objectiveCard.style.marginBottom = "8px";
+            
+            objectiveCard.innerHTML = `
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--color-cyan); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 8px;">
+                    🎯 Objectifs de la Mission
+                </div>
+                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${linkedJob.subject}">
+                    ${linkedJob.subject}
+                </div>
+                <ul class="job-reqs" style="display: flex; flex-direction: column; gap: 5px; list-style: none; padding: 0;">
+                    ${linkedJob.requirements.map(req => `
+                        <li class="${req.done ? 'done text-emerald' : 'pending text-muted'}" style="font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 0.9rem;">${req.done ? '✅' : '○'}</span>
+                            <span style="${req.done ? 'text-decoration: line-through; opacity: 0.85;' : ''}">${req.desc}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            rightSidebar.appendChild(objectiveCard);
+        }
+
         const specCard = document.createElement("div");
         specCard.className = "glass-panel workbench-details-card";
         specCard.style.flex = "1";
@@ -136,9 +288,31 @@ export function renderWorkbenchTab() {
 
         const isPowerSuff = wattageProvided >= wattageRequired;
 
-        // Is linked to an order?
-        const linkedJob = state.activeJobs.find(j => j.id === currentOpenPc.orderId);
-        
+        let ramSpecText = 'Manquante';
+        if (currentOpenPc.rams && currentOpenPc.rams.some(r => r)) {
+            const activeRams = currentOpenPc.rams.filter(r => r);
+            let totalCap = 0;
+            let type = '';
+            activeRams.forEach(r => {
+                const comp = getComponentById(r.partId);
+                if (comp) {
+                    totalCap += parseInt(comp.specs.capacity.replace("GB", "").replace("Go", "").trim());
+                    type = comp.specs.ramType;
+                }
+            });
+            ramSpecText = `${totalCap} Go ${type} (${activeRams.length}/${currentOpenPc.rams.length} Slots)`;
+        }
+
+        let storageSpecText = 'Manquant';
+        if (currentOpenPc.storages && currentOpenPc.storages.some(s => s)) {
+            const activeStorages = currentOpenPc.storages.filter(s => s);
+            const nvmeCount = activeStorages.filter(s => getComponentById(s.partId).specs.storageType === "NVMe M.2").length;
+            const sataCount = activeStorages.length - nvmeCount;
+            let nvmeLabel = nvmeCount > 0 ? `${nvmeCount}x NVMe` : '';
+            let sataLabel = sataCount > 0 ? `${sataCount}x SATA` : '';
+            storageSpecText = [nvmeLabel, sataLabel].filter(Boolean).join(', ') + ` (${activeStorages.length}/${currentOpenPc.storages.length} Disques)`;
+        }
+
         specCard.innerHTML = `
             <div style="font-weight:700; font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between">
                 <span>Configuration Actuelle</span>
@@ -149,9 +323,9 @@ export function renderWorkbenchTab() {
                 <div class="pc-spec-row"><span class="pc-spec-name">Carte Mère</span><span class="pc-spec-val">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : 'Manquante'}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Processeur</span><span class="pc-spec-val">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Manquant'}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Ventirad</span><span class="pc-spec-val">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Manquant'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Mémoire RAM</span><span class="pc-spec-val">${currentOpenPc.ram ? getComponentById(currentOpenPc.ram.partId).name : 'Manquante'}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">Mémoire RAM</span><span class="pc-spec-val" title="${currentOpenPc.rams ? currentOpenPc.rams.filter(r => r).map(r => getComponentById(r.partId).name).join(', ') : ''}">${ramSpecText}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Graphismes</span><span class="pc-spec-val">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : 'Manquants'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Stockage</span><span class="pc-spec-val">${currentOpenPc.storage ? getComponentById(currentOpenPc.storage.partId).name : 'Manquant'}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">Stockage</span><span class="pc-spec-val" title="${currentOpenPc.storages ? currentOpenPc.storages.filter(s => s).map(s => getComponentById(s.partId).name).join(', ') : ''}">${storageSpecText}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Alimentation</span><span class="pc-spec-val">${currentOpenPc.psu ? `${getComponentById(currentOpenPc.psu.partId).name} (${wattageProvided}W)` : 'Manquante'}</span></div>
             </div>
 
@@ -187,6 +361,12 @@ export function renderWorkbenchTab() {
                         Allumer le PC (Power ON)
                     </button>
                 `}
+
+                ${linkedJob ? `
+                    <button class="btn-secondary text-amber" id="btn-put-hold-workbench" style="width:100%; border-color:rgba(255,170,0,0.25); margin-top:5px; font-weight: 500;">
+                        📦 Ranger le PC (Mettre en attente)
+                    </button>
+                ` : ''}
 
                 ${!linkedJob ? `
                     <div style="border-top:1px solid var(--border-color); margin-top:10px; padding-top:10px; display:flex; flex-direction:column; gap:5px">
@@ -227,15 +407,15 @@ export function renderWorkbenchTab() {
         document.getElementById("btn-toggle-paste").addEventListener("click", () => {
             currentOpenPc.thermalPasteApplied = !currentOpenPc.thermalPasteApplied;
             saveGame();
-            renderWorkbenchTab();
             updateActiveJobsRequirements();
+            renderWorkbenchTab();
         });
 
         document.getElementById("btn-toggle-cables").addEventListener("click", () => {
             currentOpenPc.cablesConnected = !currentOpenPc.cablesConnected;
             saveGame();
-            renderWorkbenchTab();
             updateActiveJobsRequirements();
+            renderWorkbenchTab();
         });
 
         document.getElementById("btn-power-pc").addEventListener("click", () => {
@@ -246,8 +426,9 @@ export function renderWorkbenchTab() {
         pane.querySelectorAll(".case-schematic .case-slot").forEach(slot => {
             slot.addEventListener("click", (e) => {
                 const slotType = slot.getAttribute("data-slot");
+                const slotIndex = slot.getAttribute("data-index");
                 // Stop click propagation if click was directly inside slot
-                openPartInstallerDrawer(slotType);
+                openPartInstallerDrawer(slotType, slotIndex !== null ? parseInt(slotIndex) : null);
             });
         });
 
@@ -259,6 +440,10 @@ export function renderWorkbenchTab() {
             });
             document.getElementById("btn-scrap-pc").addEventListener("click", () => {
                 scrapPcToInventory();
+            });
+        } else {
+            document.getElementById("btn-put-hold-workbench").addEventListener("click", () => {
+                putJobOnHoldFromWorkbench(linkedJob);
             });
         }
     } else {
@@ -382,6 +567,10 @@ function togglePcPower() {
 
         // Success boot
         window.isPcRunning = true;
+        currentOpenPc.bootedOnce = true; // PC successfully turned on and booted
+        
+        saveGame();
+        updateActiveJobsRequirements();
         renderWorkbenchTab();
         showToast("Boot en cours... Signal vidéo détecté !", "success");
         
@@ -390,10 +579,10 @@ function togglePcPower() {
     }
 }
 
-function openPartInstallerDrawer(slotType) {
+function openPartInstallerDrawer(slotType, slotIndex = null) {
     selectedSlotType = slotType;
     
-    const existingPart = currentOpenPc[slotType];
+    const existingPart = (slotType === "ram" || slotType === "storage") ? currentOpenPc[slotType + "s"][slotIndex] : currentOpenPc[slotType];
     
     // Create drawer modal
     const overlay = document.createElement("div");
@@ -406,8 +595,9 @@ function openPartInstallerDrawer(slotType) {
     // Header
     const header = document.createElement("div");
     header.className = "panel-header";
+    const slotLabel = (slotIndex !== null) ? `${slotType.toUpperCase()} (Slot ${slotIndex + 1})` : slotType.toUpperCase();
     header.innerHTML = `
-        <h2>Sélectionner un composant : ${slotType.toUpperCase()}</h2>
+        <h2>Sélectionner un composant : ${slotLabel}</h2>
         <button class="os-window-close" id="btn-close-drawer">×</button>
     `;
     
@@ -472,20 +662,20 @@ function openPartInstallerDrawer(slotType) {
 
     if (existingPart) {
         document.getElementById("btn-uninstall-part").addEventListener("click", () => {
-            uninstallPart(slotType);
+            uninstallPart(slotType, slotIndex);
             document.body.removeChild(overlay);
         });
     }
 
     options.forEach(opt => {
         document.getElementById(`btn-install-part-${opt.id}`).addEventListener("click", () => {
-            installPart(slotType, opt);
+            installPart(slotType, opt, slotIndex);
             document.body.removeChild(overlay);
         });
     });
 }
 
-function installPart(slotType, invItem) {
+function installPart(slotType, invItem, slotIndex = null) {
     const comp = getComponentById(invItem.partId);
     
     // COMPATIBILITY CHECKS
@@ -506,8 +696,9 @@ function installPart(slotType, invItem) {
                 return;
             }
         }
-        if (currentOpenPc.ram) {
-            const ramComp = getComponentById(currentOpenPc.ram.partId);
+        if (currentOpenPc.rams && currentOpenPc.rams.some(r => r)) {
+            const firstRam = currentOpenPc.rams.find(r => r);
+            const ramComp = getComponentById(firstRam.partId);
             if (ramComp.specs.ramType !== comp.specs.ramType) {
                 showToast(`Incompatible : Type de RAM de la carte mère (${comp.specs.ramType}) incompatible avec la RAM installée (${ramComp.specs.ramType}) !`, "error");
                 return;
@@ -532,37 +723,81 @@ function installPart(slotType, invItem) {
             }
         }
     }
+    else if (slotType === "storage") {
+        if (currentOpenPc.motherboard) {
+            const isNVMe = comp.specs.storageType === "NVMe M.2";
+            const maxSlots = getMotherboardSlots(currentOpenPc.motherboard.partId);
+            if (slotIndex < maxSlots.nvme) {
+                if (!isNVMe) {
+                    showToast(`Incompatible : Cet emplacement M.2 requiert un SSD de type NVMe M.2 (disque de type SATA/HDD fourni) !`, "error");
+                    return;
+                }
+            } else {
+                if (isNVMe) {
+                    showToast(`Incompatible : Les emplacements SATA ne supportent pas les disques de type NVMe M.2 (requiert un HDD ou SSD SATA) !`, "error");
+                    return;
+                }
+            }
+        } else {
+            // No motherboard: can only install SATA storage
+            const isNVMe = comp.specs.storageType === "NVMe M.2";
+            if (isNVMe) {
+                showToast(`Incompatible : Installez d'abord une carte mère pour utiliser un slot M.2 NVMe !`, "error");
+                return;
+            }
+        }
+    }
 
     // Success install:
     // If there is already a part, uninstall first
-    if (currentOpenPc[slotType]) {
-        uninstallPart(slotType);
+    if (slotType === "ram" || slotType === "storage") {
+        if (currentOpenPc[slotType + "s"][slotIndex]) {
+            uninstallPart(slotType, slotIndex);
+        }
+        currentOpenPc[slotType + "s"][slotIndex] = {
+            partId: invItem.partId,
+            condition: invItem.condition
+        };
+        // Keep single property synchronized
+        if (slotType === "ram") {
+            currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
+        } else {
+            currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
+        }
+    } else {
+        if (currentOpenPc[slotType]) {
+            uninstallPart(slotType);
+        }
+        currentOpenPc[slotType] = {
+            partId: invItem.partId,
+            condition: invItem.condition
+        };
     }
-
-    // Mount part
-    currentOpenPc[slotType] = {
-        partId: invItem.partId,
-        condition: invItem.condition
-    };
 
     // Remove from inventory
     state.inventory = state.inventory.filter(i => i.id !== invItem.id);
 
     // Auto recalculate benchmark
     if (currentOpenPc.cpu && currentOpenPc.gpu && currentOpenPc.ram) {
-        currentOpenPc.score = calculatePcBenchmark(currentOpenPc.cpu.partId, currentOpenPc.gpu.partId, currentOpenPc.ram.partId);
+        currentOpenPc.score = calculatePcBenchmark(
+            currentOpenPc.cpu.partId,
+            currentOpenPc.gpu.partId,
+            currentOpenPc.ram.partId,
+            1, 1,
+            currentOpenPc.rams
+        );
     } else {
         currentOpenPc.score = 0;
     }
 
     saveGame();
-    showToast(`${comp.name} installé !`, "success");
-    renderWorkbenchTab();
     updateActiveJobsRequirements();
+    renderWorkbenchTab();
+    showToast(`${comp.name} installé !`, "success");
 }
 
-function uninstallPart(slotType) {
-    const installed = currentOpenPc[slotType];
+function uninstallPart(slotType, slotIndex = null) {
+    const installed = (slotType === "ram" || slotType === "storage") ? currentOpenPc[slotType + "s"][slotIndex] : currentOpenPc[slotType];
     if (installed) {
         // Return to inventory
         state.inventory.push({
@@ -573,48 +808,110 @@ function uninstallPart(slotType) {
         });
 
         // Clear slot
-        currentOpenPc[slotType] = null;
+        if (slotType === "ram" || slotType === "storage") {
+            currentOpenPc[slotType + "s"][slotIndex] = null;
+            if (slotType === "ram") {
+                currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
+            } else {
+                currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
+                // Reset OS if no storage remains
+                if (!currentOpenPc.storage) {
+                    window.isPcRunning = false;
+                    closeVirtualOs();
+                }
+            }
+        } else {
+            currentOpenPc[slotType] = null;
 
-        // Reset OS and running states on motherboard/storage changes
-        if (slotType === "motherboard" || slotType === "storage" || slotType === "cpu") {
-            window.isPcRunning = false;
-            closeVirtualOs();
-        }
+            // Reset OS and running states on motherboard/cpu changes
+            if (slotType === "motherboard" || slotType === "cpu") {
+                window.isPcRunning = false;
+                closeVirtualOs();
+            }
 
-        // Special child removal
-        if (slotType === "motherboard") {
-            // Motherboard uninstall drops CPU, cooler, RAM and GPU back to inventory
-            const secondarySlots = ["cpu", "cooler", "ram", "gpu"];
-            secondarySlots.forEach(s => {
-                if (currentOpenPc[s]) {
+            // Special child removal
+            if (slotType === "motherboard") {
+                // Motherboard uninstall drops CPU, cooler, GPU and ALL RAMs back to inventory
+                const secondarySlots = ["cpu", "cooler", "gpu"];
+                secondarySlots.forEach(s => {
+                    if (currentOpenPc[s]) {
+                        state.inventory.push({
+                            id: generateUniqueId(),
+                            partId: currentOpenPc[s].partId,
+                            condition: currentOpenPc[s].condition,
+                            pricePaid: getComponentById(currentOpenPc[s].partId).price
+                        });
+                        currentOpenPc[s] = null;
+                    }
+                });
+
+                if (currentOpenPc.rams) {
+                    currentOpenPc.rams.forEach(r => {
+                        if (r) {
+                            state.inventory.push({
+                                id: generateUniqueId(),
+                                partId: r.partId,
+                                condition: r.condition,
+                                pricePaid: getComponentById(r.partId).price
+                            });
+                        }
+                    });
+                    currentOpenPc.rams = [];
+                    currentOpenPc.ram = null;
+                }
+
+                // Motherboard uninstall also drops any NVMe SSD (M.2) plugged directly into the motherboard
+                if (currentOpenPc.storages) {
+                    const oldMbSlots = getMotherboardSlots(installed.partId);
+                    for (let i = 0; i < oldMbSlots.nvme; i++) {
+                        if (currentOpenPc.storages[i]) {
+                            state.inventory.push({
+                                id: generateUniqueId(),
+                                partId: currentOpenPc.storages[i].partId,
+                                condition: currentOpenPc.storages[i].condition,
+                                pricePaid: getComponentById(currentOpenPc.storages[i].partId).price
+                            });
+                            currentOpenPc.storages[i] = null;
+                        }
+                    }
+                    currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
+                    if (!currentOpenPc.storage) {
+                        window.isPcRunning = false;
+                        closeVirtualOs();
+                    }
+                }
+            }
+            if (slotType === "cpu") {
+                // CPU removal drops Cooler
+                if (currentOpenPc.cooler) {
                     state.inventory.push({
                         id: generateUniqueId(),
-                        partId: currentOpenPc[s].partId,
-                        condition: currentOpenPc[s].condition,
-                        pricePaid: getComponentById(currentOpenPc[s].partId).price
+                        partId: currentOpenPc.cooler.partId,
+                        condition: currentOpenPc.cooler.condition,
+                        pricePaid: getComponentById(currentOpenPc.cooler.partId).price
                     });
-                    currentOpenPc[s] = null;
+                    currentOpenPc.cooler = null;
                 }
-            });
-        }
-        if (slotType === "cpu") {
-            // CPU removal drops Cooler
-            if (currentOpenPc.cooler) {
-                state.inventory.push({
-                    id: generateUniqueId(),
-                    partId: currentOpenPc.cooler.partId,
-                    condition: currentOpenPc.cooler.condition,
-                    pricePaid: getComponentById(currentOpenPc.cooler.partId).price
-                });
-                currentOpenPc.cooler = null;
             }
         }
 
-        currentOpenPc.score = 0;
+        // Recalculate benchmark
+        if (currentOpenPc.cpu && currentOpenPc.gpu && currentOpenPc.ram) {
+            currentOpenPc.score = calculatePcBenchmark(
+                currentOpenPc.cpu.partId,
+                currentOpenPc.gpu.partId,
+                currentOpenPc.ram.partId,
+                1, 1,
+                currentOpenPc.rams
+            );
+        } else {
+            currentOpenPc.score = 0;
+        }
+
         saveGame();
-        showToast("Composant démonté et replacé en inventaire.", "info");
-        renderWorkbenchTab();
         updateActiveJobsRequirements();
+        renderWorkbenchTab();
+        showToast("Composant démonté et replacé en inventaire.", "info");
     }
 }
 
@@ -658,7 +955,7 @@ function sellCustomFlipPc() {
 }
 
 function scrapPcToInventory() {
-    const slots = ["case", "motherboard", "cpu", "cooler", "ram", "gpu", "storage", "psu"];
+    const slots = ["case", "motherboard", "cpu", "cooler", "gpu", "psu"];
     slots.forEach(slot => {
         if (currentOpenPc[slot]) {
             state.inventory.push({
@@ -670,6 +967,32 @@ function scrapPcToInventory() {
         }
     });
 
+    if (currentOpenPc.rams) {
+        currentOpenPc.rams.forEach(r => {
+            if (r) {
+                state.inventory.push({
+                    id: generateUniqueId(),
+                    partId: r.partId,
+                    condition: r.condition,
+                    pricePaid: getComponentById(r.partId).price
+                });
+            }
+        });
+    }
+
+    if (currentOpenPc.storages) {
+        currentOpenPc.storages.forEach(s => {
+            if (s) {
+                state.inventory.push({
+                    id: generateUniqueId(),
+                    partId: s.partId,
+                    condition: s.condition,
+                    pricePaid: getComponentById(s.partId).price
+                });
+            }
+        });
+    }
+
     const activeWb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
     activeWb.pc = null;
     currentOpenPc = null;
@@ -678,5 +1001,24 @@ function scrapPcToInventory() {
 
     saveGame();
     showToast("Ordinateur désassemblé. Toutes les pièces ont été renvoyées à l'inventaire !", "info");
+    renderWorkbenchTab();
+}
+
+function putJobOnHoldFromWorkbench(job) {
+    const wb = state.workbenches.find(w => w.pc && w.pc.orderId === job.id);
+    if (wb) {
+        // Sync PC back to job
+        job.pc = wb.pc;
+        wb.pc = null;
+    }
+    
+    // Shut down PC running state if removing
+    window.isPcRunning = false;
+    closeVirtualOs();
+    
+    job.status = "on_hold";
+    saveGame();
+    showToast(`Mission "${job.subject}" mise en attente. Le PC a été rangé en réserve.`, "info");
+    
     renderWorkbenchTab();
 }

@@ -277,7 +277,13 @@ export function unlockWorkbench(id) {
 // UPDATE ACTIVE JOB REQUIREMENTS
 export function updateActiveJobsRequirements() {
     state.activeJobs.forEach(job => {
-        if (job.status === "active") {
+        if (job.status === "active" || job.status === "ready") {
+            // Find the workbench currently working on this job's PC to synchronize cloned references after load
+            const wb = state.workbenches.find(w => w.pc && w.pc.orderId === job.id);
+            if (wb) {
+                job.pc = wb.pc;
+            }
+
             // Recalculate if conditions are met
             const result = checkJobRequirements(job);
             job.requirements = result.requirements;

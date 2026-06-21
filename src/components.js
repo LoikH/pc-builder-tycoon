@@ -639,3 +639,20 @@ export const COMPONENTS = [
 export function getComponentById(id) {
     return COMPONENTS.find(c => c.id === id) || null;
 }
+
+// Helper to get slot counts based on motherboard ID
+export function getMotherboardSlots(mbId) {
+    if (!mbId) return { ram: 1, nvme: 0, sata: 1 };
+    switch (mbId) {
+        case "mb-prime-h410":
+            return { ram: 2, nvme: 1, sata: 2 };
+        case "mb-msi-b550":
+            return { ram: 4, nvme: 2, sata: 4 };
+        case "mb-aorus-z690":
+            return { ram: 4, nvme: 3, sata: 4 };
+        case "mb-asus-x670":
+            return { ram: 4, nvme: 4, sata: 6 };
+        default:
+            return { ram: 2, nvme: 1, sata: 2 };
+    }
+}

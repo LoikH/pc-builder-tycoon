@@ -20,12 +20,17 @@ const REPAIR_SUBJECTS = [
     "Bruit bizarre venant de l'alimentation"
 ];
 
-const UPGRADE_SUBJECTS = [
+const UPGRADE_RAM_SUBJECTS = [
     "Besoin de plus de puissance pour Cyberpunk",
     "Mon PC rame sur Photoshop !",
-    "Je veux passer à 16 Go de RAM",
-    "Mise à jour graphique nécessaire",
-    "Besoin de plus de stockage pour mes vidéos"
+    "Besoin de plus de mémoire vive",
+    "Passer à {targetGb} Go de RAM"
+];
+
+const UPGRADE_STORAGE_SUBJECTS = [
+    "Besoin de plus de stockage pour mes vidéos",
+    "Mon disque dur est plein !",
+    "Besoin d'un SSD plus rapide"
 ];
 
 const VIRUS_SUBJECTS = [
@@ -91,12 +96,12 @@ export function generateNewJobs(playerLevel, count = 1) {
             pc = clientPc;
         } 
         else if (type === "upgrade") {
-            subject = randArr(UPGRADE_SUBJECTS);
             const upgradeType = Math.random() > 0.5 ? "ram" : "storage";
             
             if (upgradeType === "ram") {
                 // Customer wants 16GB or 32GB RAM
                 const targetGb = clientPc.ram && getComponentById(clientPc.ram.partId).specs.capacity.includes("8") ? 16 : 32;
+                subject = randArr(UPGRADE_RAM_SUBJECTS).replace("{targetGb}", targetGb);
                 text = `Salut,\n\nJe joue beaucoup en ce moment, mais mon PC a du mal lorsque j'ouvre d'autres applications en arrière-plan. Je pense que je manque de mémoire vive.\n\nPourriez-vous mettre à niveau ma RAM pour atteindre au moins ${targetGb} Go ?\n\nCordialement,\n${clientName}`;
                 budget = targetGb === 16 ? 80 : 160;
                 reward = 150 + playerLevel * 15;
@@ -108,6 +113,7 @@ export function generateNewJobs(playerLevel, count = 1) {
                 ];
             } else {
                 // Customer wants SSD upgrade or more storage
+                subject = randArr(UPGRADE_STORAGE_SUBJECTS);
                 text = `Bonjour,\n\nMon disque dur actuel est plein et très lent. Je voudrais installer un SSD M.2 NVMe rapide d'au moins 1 To pour stocker mes projets professionnels et mes jeux.\n\nMerci d'avance,\n${clientName}`;
                 budget = 120;
                 reward = 140 + playerLevel * 15;
@@ -115,6 +121,7 @@ export function generateNewJobs(playerLevel, count = 1) {
                 
                 // Downgrade client pc storage to HDD so they must upgrade
                 clientPc.storage = { partId: "storage-barracuda-1tb", condition: "used" };
+                clientPc.bootedOnce = false; // Must boot to test after swap
                 
                 requirements = [
                     { id: "fast_ssd", desc: "Installer un SSD M.2 NVMe d'au moins 1 To", done: false },
@@ -132,6 +139,7 @@ export function generateNewJobs(playerLevel, count = 1) {
                 
                 // Break the CPU
                 if (clientPc.cpu) clientPc.cpu.condition = "broken";
+                clientPc.bootedOnce = false; // Must replace and boot to test
                 
                 const originalCpu = getComponentById(clientPc.cpu.partId);
                 budget = originalCpu.price + 30;
@@ -148,6 +156,7 @@ export function generateNewJobs(playerLevel, count = 1) {
                 
                 // Break GPU
                 if (clientPc.gpu) clientPc.gpu.condition = "broken";
+                clientPc.bootedOnce = false; // Must replace and boot to test
                 
                 const originalGpu = getComponentById(clientPc.gpu.partId);
                 budget = originalGpu.price + 40;
@@ -202,7 +211,8 @@ export function generateNewJobs(playerLevel, count = 1) {
                 case: null, motherboard: null, cpu: null, cooler: null,
                 ram: null, gpu: null, storage: null, psu: null,
                 thermalPasteApplied: false, cablesConnected: false,
-                hasOs: false, isClean: true, score: 0, diagnosed: false
+                hasOs: false, isClean: true, score: 0, diagnosed: false,
+                bootedOnce: false
             };
         }
 
@@ -283,12 +293,13 @@ function createBaseClientPc(jobType, level) {
         hasOs: true,
         isClean: true,
         score: calculatePcBenchmark(cpu, gpu, ram),
-        diagnosed: true
+        diagnosed: true,
+        bootedOnce: true
     };
 }
 
 // PC BENCHMARK FORMULA
-export function calculatePcBenchmark(cpuId, gpuId, ramId, cpuClockMult = 1, gpuClockMult = 1) {
+export function calculatePcBenchmark(cpuId, gpuId, ramId, cpuClockMult = 1, gpuClockMult = 1, rams = null) {
     if (!cpuId || !gpuId || !ramId) return 0;
     
     const cpu = getComponentById(cpuId);
@@ -299,7 +310,18 @@ export function calculatePcBenchmark(cpuId, gpuId, ramId, cpuClockMult = 1, gpuC
 
     const cpuScore = cpu.specs.score * cpuClockMult;
     const gpuScore = gpu.specs.score * gpuClockMult;
-    const ramScore = ram.specs.score;
+    
+    let ramScore = ram.specs.score;
+    if (rams && rams.length > 0) {
+        const activeRams = rams.filter(r => r !== null);
+        if (activeRams.length > 0) {
+            const scores = activeRams.map(r => getComponentById(r.partId)?.specs.score || 0);
+            const maxScore = Math.max(...scores);
+            // Multi-channel bonus: +15% performance score for each additional RAM stick!
+            const bonus = 1 + (activeRams.length - 1) * 0.15;
+            ramScore = Math.round(maxScore * bonus);
+        }
+    }
 
     // Standard scoring formula
     const finalScore = Math.round((gpuScore * 0.7) + (cpuScore * 0.2) + (ramScore * 0.1));
@@ -317,7 +339,7 @@ export function checkJobRequirements(job) {
         switch (req.id) {
             case "boot_os":
                 done = pc && pc.case && pc.motherboard && pc.cpu && pc.cooler && pc.ram && pc.gpu && pc.storage && pc.psu &&
-                       pc.cablesConnected && pc.thermalPasteApplied && pc.hasOs && !isAnyPartBroken(pc);
+                       pc.cablesConnected && pc.thermalPasteApplied && pc.hasOs && pc.bootedOnce && !isAnyPartBroken(pc);
                 break;
                 
             case "clean_os":
@@ -325,23 +347,31 @@ export function checkJobRequirements(job) {
                 break;
                 
             case "ram_capacity":
-                if (pc && pc.ram) {
-                    const ramComp = getComponentById(pc.ram.partId);
-                    if (ramComp) {
-                        const cap = parseInt(ramComp.specs.capacity.replace("GB", "").replace("Go", "").trim());
-                        done = cap >= req.target;
-                    }
+                if (pc) {
+                    let totalCap = 0;
+                    const ramList = pc.rams ? pc.rams.filter(r => r !== null) : (pc.ram ? [pc.ram] : []);
+                    ramList.forEach(r => {
+                        const rComp = getComponentById(r.partId);
+                        if (rComp) {
+                            totalCap += parseInt(rComp.specs.capacity.replace("GB", "").replace("Go", "").trim());
+                        }
+                    });
+                    done = totalCap >= req.target;
                 }
                 break;
                 
             case "fast_ssd":
-                if (pc && pc.storage) {
-                    const storeComp = getComponentById(pc.storage.partId);
-                    if (storeComp) {
-                        const isNVMe = storeComp.specs.storageType === "NVMe M.2";
-                        const cap = parseInt(storeComp.specs.capacity.replace("TB", "").replace("To", "").trim()) || 0.5;
-                        done = isNVMe && (cap >= 1 || storeComp.id.includes("1tb") || storeComp.id.includes("2tb"));
-                    }
+                if (pc) {
+                    const storageList = pc.storages ? pc.storages.filter(s => s !== null) : (pc.storage ? [pc.storage] : []);
+                    done = storageList.some(s => {
+                        const storeComp = getComponentById(s.partId);
+                        if (storeComp) {
+                            const isNVMe = storeComp.specs.storageType === "NVMe M.2";
+                            const cap = parseInt(storeComp.specs.capacity.replace("TB", "").replace("To", "").trim()) || 0.5;
+                            return isNVMe && (cap >= 1 || storeComp.id.includes("1tb") || storeComp.id.includes("2tb"));
+                        }
+                        return false;
+                    });
                 }
                 break;
 

@@ -66,6 +66,9 @@ function populateEmailList() {
         } else if (job.status === "ready") {
             badgeColor = "var(--color-emerald)";
             badgeText = "Prêt";
+        } else if (job.status === "on_hold") {
+            badgeColor = "var(--color-amber)";
+            badgeText = "En Attente";
         }
 
         item.innerHTML = `
@@ -149,10 +152,12 @@ function renderEmailDetails(job) {
 
     const actionsArea = document.getElementById("job-actions-area");
 
-    if (job.status === "available") {
+    if (job.status === "available" || job.status === "on_hold") {
         actionsArea.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px; width:100%">
-                <p style="font-size:0.8rem; color:var(--text-secondary)">Attribuer ce projet à un établi libre :</p>
+                <p style="font-size:0.8rem; color:var(--text-secondary)">
+                    ${job.status === "on_hold" ? "Ré-attribuer et reprendre ce projet sur un établi libre :" : "Attribuer ce projet à un établi libre :"}
+                </p>
                 <div style="display:flex; gap:10px">
                     ${state.workbenches.map(wb => {
                         if (!wb.unlocked) return "";
@@ -164,9 +169,11 @@ function renderEmailDetails(job) {
                         `;
                     }).join('')}
                 </div>
+                ${job.status === "available" ? `
                 <button class="btn-secondary text-crimson" style="margin-top:5px; border-color:rgba(255,0,85,0.2)" id="btn-reject-job">
                     Refuser la mission
                 </button>
+                ` : ''}
             </div>
         `;
 
@@ -178,16 +185,28 @@ function renderEmailDetails(job) {
             });
         });
 
-        document.getElementById("btn-reject-job").addEventListener("click", () => {
-            rejectJob(job);
-        });
+        if (job.status === "available") {
+            document.getElementById("btn-reject-job").addEventListener("click", () => {
+                rejectJob(job);
+            });
+        }
 
     } else if (job.status === "active") {
         actionsArea.innerHTML = `
-            <p style="font-size:0.85rem; color:var(--text-amber)">
-                Le PC est en cours de montage sur l'Établi. Remplissez tous les objectifs à l'établi pour facturer le client.
-            </p>
+            <div style="display:flex; flex-direction:column; gap:10px; width:100%">
+                <p style="font-size:0.85rem; color:var(--text-amber)">
+                    Le PC est en cours de montage sur l'Établi. Remplissez tous les objectifs à l'établi pour facturer le client.
+                </p>
+                <button class="btn-secondary text-amber" style="border-color:rgba(255,170,0,0.25); width:100%" id="btn-put-hold-job">
+                    Ranger le PC et mettre la mission en attente (Libérer l'établi)
+                </button>
+            </div>
         `;
+
+        document.getElementById("btn-put-hold-job").addEventListener("click", () => {
+            putJobOnHold(job);
+        });
+
     } else if (job.status === "ready") {
         actionsArea.innerHTML = `
             <button class="btn-primary glow-btn" id="btn-complete-job" style="width:100%">
@@ -209,7 +228,7 @@ function acceptJob(job, workbenchId) {
         wb.pc.orderId = job.id; // link back to job
         
         saveGame();
-        showToast(`Projet accepté et PC placé sur l'Établi ${workbenchId} !`, "success");
+        showToast(job.status === "on_hold" ? `PC d'occasion repris sur l'Établi ${workbenchId} !` : `Projet accepté et PC placé sur l'Établi ${workbenchId} !`, "success");
         
         // Refresh UI
         renderEmailsTab();
@@ -222,6 +241,24 @@ function rejectJob(job) {
     selectedJobId = null;
     saveGame();
     showToast("Mission déclinée.", "info");
+    renderEmailsTab();
+}
+
+function putJobOnHold(job) {
+    const wb = state.workbenches.find(w => w.pc && w.pc.orderId === job.id);
+    if (wb) {
+        // Sync PC back to job
+        job.pc = wb.pc;
+        wb.pc = null;
+    }
+    
+    // Shut down PC running state if removing
+    window.isPcRunning = false;
+    
+    job.status = "on_hold";
+    saveGame();
+    showToast(`Mission "${job.subject}" mise en attente. Le PC a été rangé en réserve.`, "info");
+    
     renderEmailsTab();
 }
 

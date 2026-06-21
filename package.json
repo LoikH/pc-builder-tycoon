@@ -4,11 +4,14 @@
   "description": "Simulation game inspired by PC Building Simulator built with HTML, CSS, and modular JS",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "node node_modules/vite/bin/vite.js",
+    "build": "node node_modules/vite/bin/vite.js build",
+    "preview": "node node_modules/vite/bin/vite.js preview"
   },
   "devDependencies": {
     "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.62.2"
   }
 }
