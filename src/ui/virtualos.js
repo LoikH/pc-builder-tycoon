@@ -121,8 +121,9 @@ function runOsInstaller(bootDiv) {
     ];
 
     const interval = setInterval(() => {
-        progress += 10;
-        if (progressFill) progressFill.style.width = `${progress}%`;
+        const increment = state.hasFastUsb ? 20 : 10;
+        progress += increment;
+        if (progressFill) progressFill.style.width = `${Math.min(progress, 100)}%`;
         if (progressText) progressText.textContent = steps[Math.floor(progress / 17)] || "Presque fini...";
 
         if (progress >= 100) {
@@ -266,13 +267,42 @@ function openSysInfoApp() {
 
     const cpu = getComponentById(activePc.cpu.partId);
     const gpu = getComponentById(activePc.gpu.partId);
-    const ram = getComponentById(activePc.ram.partId);
     const storage = getComponentById(activePc.storage.partId);
+
+    // Calculate sum capacity of all active RAM slots
+    let ramCapacityText = "Manquante";
+    if (activePc.rams && activePc.rams.some(r => r)) {
+        const activeRams = activePc.rams.filter(r => r);
+        let totalCap = 0;
+        let type = "";
+        const processedKits = new Set();
+        activeRams.forEach(r => {
+            if (r.kitId) {
+                if (processedKits.has(r.kitId)) return;
+                processedKits.add(r.kitId);
+            }
+            const comp = getComponentById(r.partId);
+            if (comp) {
+                totalCap += parseInt(comp.specs.capacity.replace("GB", "").replace("Go", "").trim());
+                type = comp.specs.ramType;
+            }
+        });
+        ramCapacityText = `${totalCap} Go ${type}`;
+    } else if (activePc.ram) {
+        const rComp = getComponentById(activePc.ram.partId);
+        if (rComp) {
+            ramCapacityText = `${rComp.specs.capacity} ${rComp.specs.ramType}`;
+        }
+    }
 
     // Compute live CPU temperature based on overclock voltage and thermal paste
     let baseTemp = 42;
-    if (!activePc.thermalPasteApplied) baseTemp = 95; // Thermal paste missing heats immediately
-    
+    if (activePc.thermalPasteApplied) {
+        if (activePc.thermalPasteType === "liquid_metal") baseTemp = 34; // Liquid Metal is -8°C cooler
+    } else {
+        baseTemp = 95; // Thermal paste missing heats immediately
+    }
+
     // Add overclock heat penalty
     const voltagePenalty = (coreVoltage - 1.20) * 120; // voltage generates massive heat
     let currentTemp = Math.round(baseTemp + voltagePenalty);
@@ -286,7 +316,7 @@ function openSysInfoApp() {
                 <p><strong>Température CPU :</strong> <span id="sysinfo-temp" style="font-weight:700">${currentTemp}°C</span></p>
                 <p><strong>GPU :</strong> ${gpu.name} (${gpu.specs.vram})</p>
                 <p><strong>Fréquence GPU :</strong> ${(parseFloat(gpu.specs.speed) * gpuOverclockMult).toFixed(0)} MHz</p>
-                <p><strong>Mémoire Vive :</strong> ${ram.specs.capacity} (${ram.specs.ramType})</p>
+                <p><strong>Mémoire Vive :</strong> ${ramCapacityText}</p>
                 <p><strong>Stockage Principal :</strong> ${storage.name} (${storage.specs.capacity} M.2)</p>
             </div>
             
@@ -489,7 +519,7 @@ function startBenchmarkSimulation(body) {
     let liveScore = 0;
     let liveTemp = 42;
 
-    const baseTemp = activePc.thermalPasteApplied ? 45 : 95;
+    const baseTemp = activePc.thermalPasteApplied ? (activePc.thermalPasteType === "liquid_metal" ? 37 : 45) : 95;
     const maxSafeTemp = 95;
     const voltageHeatFactor = (coreVoltage - 1.20) * 110;
 
@@ -523,6 +553,10 @@ function startBenchmarkSimulation(body) {
             liveTempText.textContent = liveTemp;
             if (liveTemp >= 90) {
                 liveTempText.style.color = "var(--color-crimson)";
+                // Blinking safety warning if thermal probe is installed
+                if (state.hasThermalProbe) {
+                    phaseLabel.innerHTML = `<span class="text-crimson font-mono" style="animation: blink 1s infinite">⚠️ ALERTE SURCHAUFFE CPU (${liveTemp}°C) - LIMITE CRITIQUE !</span>`;
+                }
             } else if (liveTemp >= 72) {
                 liveTempText.style.color = "var(--color-amber)";
             }

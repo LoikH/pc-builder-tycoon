@@ -143,6 +143,57 @@ function populateMyListings() {
         card.className = "part-card";
         card.style.flexDirection = "column";
 
+        let offerHtml = "";
+        if (item.activeOffer) {
+            const offer = item.activeOffer;
+            if (offer.isFullPrice) {
+                offerHtml = `
+                    <div style="background:rgba(0, 255, 136, 0.05); border:1px solid rgba(0, 255, 136, 0.2); border-radius:6px; padding:10px; margin-bottom:12px; margin-top:8px">
+                        <div style="font-weight:600; font-size:0.8rem; color:var(--text-emerald)">🟢 OFFRE D'ACHAT FERME</div>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px">
+                            <strong>${offer.buyerName}</strong> achète le PC au prix demandé de <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> !
+                        </p>
+                        <button class="btn-primary glow-btn" style="width:100%; margin-top:8px; background:linear-gradient(135deg, var(--color-emerald), #080); box-shadow:none; font-size:0.75rem; padding:5px" id="btn-accept-offer-${index}">
+                            Confirmer la vente
+                        </button>
+                    </div>
+                `;
+            } else {
+                offerHtml = `
+                    <div style="background:rgba(255, 170, 0, 0.05); border:1px solid rgba(255, 170, 0, 0.2); border-radius:6px; padding:10px; margin-bottom:12px; margin-top:8px" id="offer-container-${index}">
+                        <div style="font-weight:600; font-size:0.8rem; color:var(--color-amber)">🟡 PROPOSITION DE NÉGOCIATION</div>
+                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px">
+                            <strong>${offer.buyerName}</strong> vous propose <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> (Demande : ${item.price}$ - Rabais : ${Math.round((1 - offer.offeredPrice/item.price)*100)}%).
+                        </p>
+                        <div style="display:flex; gap:6px; margin-top:8px" id="offer-actions-${index}">
+                            <button class="btn-primary glow-btn" style="flex:1; background:linear-gradient(135deg, var(--color-emerald), #080); box-shadow:none; font-size:0.7rem; padding:4px" id="btn-accept-offer-${index}">
+                                Accepter
+                            </button>
+                            <button class="btn-secondary" style="flex:1; border-color:rgba(189,0,255,0.3); color:var(--color-purple); font-size:0.7rem; padding:4px" id="btn-counter-offer-${index}">
+                                Contre-proposer
+                            </button>
+                            <button class="btn-secondary text-crimson" style="flex:1; border-color:rgba(255,0,85,0.15); font-size:0.7rem; padding:4px" id="btn-refuse-offer-${index}">
+                                Refuser
+                            </button>
+                        </div>
+                        <div id="counter-form-${index}" style="display:none; flex-direction:column; gap:6px; margin-top:8px">
+                            <input type="number" id="input-counter-${index}" placeholder="Entrez votre prix ($)" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.75rem">
+                            <div style="display:flex; gap:6px">
+                                <button class="btn-primary glow-btn" style="flex:1; font-size:0.7rem; padding:4px" id="btn-submit-counter-${index}">Valider</button>
+                                <button class="btn-secondary" style="flex:1; font-size:0.7rem; padding:4px" id="btn-cancel-counter-${index}">Annuler</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            offerHtml = `
+                <div style="font-size:0.75rem; color:var(--text-muted); background:rgba(255,255,255,0.01); border:1px dashed var(--border-color); border-radius:6px; padding:8px; margin-top:8px; margin-bottom:12px; text-align:center">
+                    En attente d'acheteurs... (Transition de nuit requise)
+                </div>
+            `;
+        }
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start">
                 <span class="part-category text-purple">En vente</span>
@@ -156,6 +207,8 @@ function populateMyListings() {
                 <div class="part-spec-item"><span>GPU :</span><span>${getComponentById(item.pc.gpu?.partId)?.name || 'Aucun'}</span></div>
             </div>
 
+            ${offerHtml}
+
             <button class="btn-secondary text-crimson" style="width:100%; border-color:rgba(255,0,85,0.2)" id="btn-cancel-listing-${index}">
                 Retirer de la vente (Récupérer)
             </button>
@@ -163,9 +216,46 @@ function populateMyListings() {
 
         list.appendChild(card);
 
+        // Bind basic cancel click
         document.getElementById(`btn-cancel-listing-${index}`).addEventListener("click", () => {
             cancelListing(index);
         });
+
+        // Bind offer events
+        if (item.activeOffer) {
+            document.getElementById(`btn-accept-offer-${index}`).addEventListener("click", () => {
+                acceptOffer(index);
+            });
+
+            if (!item.activeOffer.isFullPrice) {
+                document.getElementById(`btn-refuse-offer-${index}`).addEventListener("click", () => {
+                    refuseOffer(index);
+                });
+
+                const counterBtn = document.getElementById(`btn-counter-offer-${index}`);
+                const counterForm = document.getElementById(`counter-form-${index}`);
+                const offerActions = document.getElementById(`offer-actions-${index}`);
+
+                counterBtn.addEventListener("click", () => {
+                    counterForm.style.display = "flex";
+                    offerActions.style.display = "none";
+                });
+
+                document.getElementById(`btn-cancel-counter-${index}`).addEventListener("click", () => {
+                    counterForm.style.display = "none";
+                    offerActions.style.display = "flex";
+                });
+
+                document.getElementById(`btn-submit-counter-${index}`).addEventListener("click", () => {
+                    const price = parseFloat(document.getElementById(`input-counter-${index}`).value);
+                    if (isNaN(price) || price <= 0) {
+                        showToast("Veuillez saisir un prix valide !", "error");
+                        return;
+                    }
+                    submitCounterOffer(index, Math.round(price));
+                });
+            }
+        }
     });
 }
 
@@ -191,19 +281,97 @@ function cancelListing(idx) {
     renderBargainBinTab();
 }
 
-// RESOLVE PC SALES OVERNIGHT
+function acceptOffer(idx) {
+    const listing = state.customPcs[idx];
+    const offer = listing.activeOffer;
+
+    state.money += offer.offeredPrice;
+    state.xp += 50; // gain flip XP
+
+    // Remove PC from customPcs
+    state.customPcs.splice(idx, 1);
+    
+    saveGame();
+    showToast(`Félicitations ! PC vendu à ${offer.buyerName} pour ${offer.offeredPrice}$ !`, "success");
+    window.updateHud();
+    renderBargainBinTab();
+}
+
+function refuseOffer(idx) {
+    const listing = state.customPcs[idx];
+    listing.activeOffer = null; // buyer walks away
+    
+    saveGame();
+    showToast("Offre déclinée. L'acheteur s'en va.", "info");
+    renderBargainBinTab();
+}
+
+function submitCounterOffer(idx, counterPrice) {
+    const listing = state.customPcs[idx];
+    const offer = listing.activeOffer;
+
+    if (counterPrice <= offer.offeredPrice) {
+        // Player counter-offered less than what buyer already offered!
+        // Instant sell
+        state.money += counterPrice;
+        state.xp += 50;
+        state.customPcs.splice(idx, 1);
+        saveGame();
+        showToast(`L'acheteur accepte immédiatement cette contre-proposition ! Vendu pour ${counterPrice}$ !`, "success");
+        window.updateHud();
+        renderBargainBinTab();
+        return;
+    }
+
+    if (counterPrice >= listing.price) {
+        // Player counter-offered more than original list price!
+        // Offended reject
+        listing.activeOffer = null;
+        saveGame();
+        showToast("L'acheteur s'est senti offensé par votre proposition déraisonnable et a quitté la table des négociations !", "error");
+        renderBargainBinTab();
+        return;
+    }
+
+    // Ratio formula
+    const diffOriginal = listing.price - offer.offeredPrice;
+    const diffCounter = counterPrice - offer.offeredPrice;
+    const ratio = diffCounter / (diffOriginal || 1);
+
+    const acceptanceProbability = 1 - ratio; // closer to offer price = higher chance
+
+    if (Math.random() < acceptanceProbability) {
+        // Accept
+        state.money += counterPrice;
+        state.xp += 50;
+        state.customPcs.splice(idx, 1);
+        saveGame();
+        showToast(`Négociation réussie ! ${offer.buyerName} accepte votre contre-proposition de ${counterPrice}$ !`, "success");
+        window.updateHud();
+    } else {
+        // Reject and leave
+        listing.activeOffer = null;
+        saveGame();
+        showToast(`${offer.buyerName} a refusé votre contre-proposition de ${counterPrice}$ et préfère chercher ailleurs.`, "warning");
+    }
+
+    renderBargainBinTab();
+}
+
+// RESOLVE PC SALES OVERNIGHT (Now generates buyer offers instead of silent sales)
 export function resolveFlipSales() {
-    if (!state.customPcs || state.customPcs.length === 0) return 0;
+    if (!state.customPcs || state.customPcs.length === 0) return { soldCount: 0, totalSales: 0 };
     
     let totalSales = 0;
     let soldCount = 0;
-    const remainingPcs = [];
+    
+    const potentialBuyerNames = ["GamerPro99", "MamanGamer", "TechEnthusiast", "DirectProd", "KevinDarty", "RetroLover", "FPS_King", "SophieSlay"];
 
     state.customPcs.forEach(listing => {
-        // Calculate probability of sale based on price vs build cost + performance
-        // If benchmark score is high and price is reasonable, it sells quickly.
+        // Remove previous daily offers (buyer walked away)
+        listing.activeOffer = null;
+
         const pc = listing.pc;
-        
         let retailCost = 0;
         Object.keys(pc).forEach(key => {
             if (pc[key] && pc[key].partId) {
@@ -212,38 +380,49 @@ export function resolveFlipSales() {
             }
         });
 
-        // Profit ratio: requested price / raw retail component value
+        // Profit ratio: price requested vs retail parts cost
         const priceRatio = listing.price / (retailCost || 1);
-
-        // Score ratio: benchmark / 10000
-        const perfRatio = pc.score / 10000;
-
-        // Base probability: lower ratio = higher chance
         let probability = 0.5;
         
-        if (priceRatio < 0.8) probability = 0.9;  // underpriced, instant sell
-        else if (priceRatio < 1.2) probability = 0.7; // standard mark-up, high chance
-        else if (priceRatio < 1.5) probability = 0.4; // greedy mark-up, moderate chance
-        else if (priceRatio < 2.0) probability = 0.15; // very overpriced
-        else probability = 0.02; // extremely overpriced
+        if (priceRatio < 0.8) probability = 0.95;  // underpriced, instant sell
+        else if (priceRatio < 1.2) probability = 0.75; // standard high chance
+        else if (priceRatio < 1.5) probability = 0.45; // moderate chance
+        else if (priceRatio < 2.0) probability = 0.15; // low chance
+        else probability = 0.03; // extremely overpriced
 
         // Benchmark bonus
         if (pc.score > 8000) probability += 0.1;
 
         if (Math.random() < probability) {
-            totalSales += listing.price;
-            soldCount += 1;
+            // A buyer is interested!
+            const buyerName = potentialBuyerNames[Math.floor(Math.random() * potentialBuyerNames.length)];
             
-            // Gain a tiny bit of experience for flips
-            state.xp += 50;
-        } else {
-            remainingPcs.push(listing);
+            // Determine if they accept full price or negotiate
+            const isFullPrice = Math.random() < 0.35 || priceRatio < 0.9; // 35% chance of full price buy (or if underpriced)
+            
+            if (isFullPrice) {
+                listing.activeOffer = {
+                    id: "off-" + generateUniqueId(),
+                    buyerName,
+                    offeredPrice: listing.price,
+                    isFullPrice: true,
+                    status: "pending"
+                };
+            } else {
+                // Negotiate: offer between 75% and 92% of the price
+                const discountFactor = 0.75 + Math.random() * 0.17;
+                const offeredPrice = Math.round(listing.price * discountFactor);
+                listing.activeOffer = {
+                    id: "off-" + generateUniqueId(),
+                    buyerName,
+                    offeredPrice,
+                    isFullPrice: false,
+                    status: "pending"
+                };
+            }
         }
     });
 
-    state.customPcs = remainingPcs;
-    state.money += totalSales;
     saveGame();
-
     return { soldCount, totalSales };
 }

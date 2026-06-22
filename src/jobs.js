@@ -3,7 +3,7 @@
    ========================================== */
 
 import { getComponentById } from "./components.js";
-import { generateUniqueId } from "./state.js";
+import { state, generateUniqueId } from "./state.js";
 
 // SENDER NAMES AND CLIENTS
 const CLIENT_NAMES = [
@@ -216,18 +216,30 @@ export function generateNewJobs(playerLevel, count = 1) {
             };
         }
 
+        // Targeted virus wave multiplier
+        if (state.currentEvent && state.currentEvent.id === "virus_wave" && type === "virus") {
+            reward *= 2;
+            xpReward *= 2;
+        }
+
+        const isUrgent = playerLevel >= 2 && Math.random() < 0.25; // 25% chance of urgent contracts
+        const finalReward = isUrgent ? Math.round(reward * 1.8) : reward;
+        const finalXpReward = isUrgent ? Math.round(xpReward * 1.8) : xpReward;
+
         jobs.push({
             id,
             clientName,
-            subject,
+            subject: isUrgent ? "🚨 [URGENT 24H] " + subject : subject,
             text,
             type,
             status: "available",
             requirements,
             budget,
-            reward,
-            xpReward,
-            pc
+            reward: finalReward,
+            xpReward: finalXpReward,
+            pc,
+            isUrgent,
+            expiryDay: isUrgent ? (state ? state.day : 1) : null
         });
     }
 
@@ -350,7 +362,12 @@ export function checkJobRequirements(job) {
                 if (pc) {
                     let totalCap = 0;
                     const ramList = pc.rams ? pc.rams.filter(r => r !== null) : (pc.ram ? [pc.ram] : []);
+                    const processedKits = new Set();
                     ramList.forEach(r => {
+                        if (r.kitId) {
+                            if (processedKits.has(r.kitId)) return;
+                            processedKits.add(r.kitId);
+                        }
                         const rComp = getComponentById(r.partId);
                         if (rComp) {
                             totalCap += parseInt(rComp.specs.capacity.replace("GB", "").replace("Go", "").trim());

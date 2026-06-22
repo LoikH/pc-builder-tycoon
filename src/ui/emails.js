@@ -71,6 +71,17 @@ function populateEmailList() {
             badgeText = "En Attente";
         }
 
+        if (job.isUrgent) {
+            item.style.borderLeft = "4px solid var(--color-crimson)";
+            if (job.status === "available") {
+                badgeColor = "var(--color-crimson)";
+                badgeText = "🚨 Urgent 24h";
+                item.style.background = "rgba(255, 0, 85, 0.03)";
+            } else {
+                badgeText = "🚨 " + badgeText;
+            }
+        }
+
         item.innerHTML = `
             <div class="email-sender">
                 <span>${job.clientName}</span>
@@ -269,6 +280,9 @@ function completeJob(job) {
             wb.pc = null;
         }
     });
+
+    // Shut down PC running state if removing
+    window.isPcRunning = false;
 
     // 2. Pay reward
     addMoney(job.reward);

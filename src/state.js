@@ -19,11 +19,87 @@ const DEFAULT_STATE = {
         { id: 3, pc: null, unlocked: false, cost: 2000 }
     ],
     selectedWorkbenchId: 1,
-    deliveryQueue: [], // items: { partId, condition, deliveryDay }
+    deliveryQueue: [], // items: { partId, condition, deliveryDay, pricePaid }
     bargainBin: [], // computers or high end parts up for bid/buy
     customPcs: [], // player built PCs for sale on BargainBin: { id, pc, name, price }
-    completedJobsCount: 0
+    completedJobsCount: 0,
+    currentEvent: null,
+    liquidMetalCount: 0,
+    hasThermalProbe: false,
+    hasFastUsb: false,
+    showroomPcs: [],
+    hasSeenIntro: false
 };
+
+// MARKET EVENTS DATABASE
+export const EVENTS = [
+    {
+        id: "silicon_shortage",
+        title: "🔥 Pénurie Mondiale de Silicium",
+        text: "Des usines à Taiwan subissent des coupures d'électricité massives. Le prix d'achat de toutes les cartes graphiques (GPU) et processeurs (CPU) augmente de 40% aujourd'hui !",
+        modifiers: { cpu: 1.4, gpu: 1.4 }
+    },
+    {
+        id: "memory_crisis",
+        title: "⚡ Crise des Puces de Mémoire",
+        text: "Un incendie s'est déclaré chez un important fabricant de plaquettes de silicium. Le prix de la mémoire RAM et des disques de stockage (SSD/HDD) augmente de 50% aujourd'hui !",
+        modifiers: { ram: 1.5, storage: 1.5 }
+    },
+    {
+        id: "black_friday",
+        title: "🛍️ Soldes de Folie (Black Friday)",
+        text: "C'est le Black Friday ! Profitez d'une réduction de 15% sur toutes les pièces détachées de la boutique, et la livraison Express passe de 50$ à seulement 25$ !",
+        modifiers: { global_discount: 0.85, express_shipping: 25 }
+    },
+    {
+        id: "virus_wave",
+        title: "🛡️ Cyber-Attaque Mondiale",
+        text: "Un ransomware redoutable baptisé 'TycoonCrypt' infecte des milliers de PC. Les récompenses de Cash et d'XP pour toutes les missions de désinfection de virus sont DOUBLÉES aujourd'hui !",
+        modifiers: { virus_reward: 2.0 }
+    }
+];
+
+export function getComponentMarketPrice(comp) {
+    if (!comp) return 0;
+    let price = comp.price;
+
+    const event = state.currentEvent;
+    if (event && event.modifiers) {
+        // Category multipliers
+        if (event.modifiers[comp.type]) {
+            price *= event.modifiers[comp.type];
+        }
+        // Global discount modifier
+        if (event.modifiers.global_discount) {
+            price *= event.modifiers.global_discount;
+        }
+    }
+
+    // Apply permanent Prestige Discount from Showroom PCs (1% discount per 2500 pts, max 20%)
+    const totalPrestigeScore = (state.showroomPcs || []).reduce((sum, item) => {
+        if (item && item.pc) {
+            return sum + (item.pc.score || 0);
+        }
+        return sum;
+    }, 0);
+    const prestigeDiscountPercent = Math.min(Math.floor(totalPrestigeScore / 2500), 20);
+    if (prestigeDiscountPercent > 0) {
+        price *= (1 - prestigeDiscountPercent / 100);
+    }
+
+    return Math.round(price);
+}
+
+export function generateDailyEvent() {
+    // 60% chance of a quiet day, 40% chance of a special event
+    if (Math.random() > 0.4) {
+        state.currentEvent = null;
+    } else {
+        const randEvent = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+        state.currentEvent = JSON.parse(JSON.stringify(randEvent));
+    }
+    saveGame();
+}
 
 export let state = { ...DEFAULT_STATE };
 
@@ -119,20 +195,44 @@ export function orderParts(partIds, deliveryType = "standard") {
     let totalCost = 0;
     partIds.forEach(id => {
         const component = getComponentById(id);
-        if (component) totalCost += component.price;
+        if (component) totalCost += getComponentMarketPrice(component);
     });
 
-    const shippingCost = deliveryType === "express" ? 50 : 10;
+    let shippingCost = deliveryType === "express" ? 50 : 10;
+    
+    // Black Friday discount on express shipping cost
+    if (state.currentEvent && state.currentEvent.modifiers && state.currentEvent.modifiers.express_shipping !== undefined) {
+        if (deliveryType === "express") {
+            shippingCost = state.currentEvent.modifiers.express_shipping;
+        }
+    }
+
     totalCost += shippingCost;
 
     if (deductMoney(totalCost)) {
         partIds.forEach(id => {
-            const deliveryDay = deliveryType === "express" ? state.day : state.day + 1;
-            state.deliveryQueue.push({
-                partId: id,
-                condition: "new",
-                deliveryDay: deliveryDay
-            });
+            const comp = getComponentById(id);
+            if (!comp) return;
+            
+            const pricePaid = getComponentMarketPrice(comp);
+            
+            if (deliveryType === "express") {
+                // Deliver instantly to inventory
+                state.inventory.push({
+                    id: generateUniqueId(),
+                    partId: id,
+                    condition: "new",
+                    pricePaid: pricePaid
+                });
+            } else {
+                // Queue for next day standard delivery
+                state.deliveryQueue.push({
+                    partId: id,
+                    condition: "new",
+                    deliveryDay: state.day + 1,
+                    pricePaid: pricePaid
+                });
+            }
         });
         saveGame();
         return { success: true, cost: totalCost };
@@ -220,6 +320,19 @@ export function generateBargainBin() {
 
 // NEXT DAY SYSTEM
 export function processNextDay() {
+    // Expire urgent jobs from previous days
+    const expiredUrgentJobs = state.activeJobs.filter(j => j.isUrgent && j.status !== "completed" && j.expiryDay < state.day);
+    expiredUrgentJobs.forEach(job => {
+        // Free any workbench occupied by this job
+        state.workbenches.forEach(wb => {
+            if (wb.pc && wb.pc.orderId === job.id) {
+                wb.pc = null;
+            }
+        });
+    });
+    
+    state.activeJobs = state.activeJobs.filter(j => !j.isUrgent || j.status === "completed" || j.expiryDay >= state.day);
+
     state.day += 1;
 
     // 1. Process Deliveries
@@ -231,11 +344,14 @@ export function processNextDay() {
             id: generateUniqueId(),
             partId: item.partId,
             condition: item.condition, // new
-            pricePaid: getComponentById(item.partId).price
+            pricePaid: item.pricePaid !== undefined ? item.pricePaid : getComponentById(item.partId).price
         });
     });
 
-    // 2. Generate new Emails
+    // 2. Generate Daily Tech News Event
+    generateDailyEvent();
+
+    // 3. Generate new Emails
     const newJobsCount = Math.floor(Math.random() * 2) + 1; // 1 or 2 new jobs
     const generated = generateNewJobs(state.level, newJobsCount);
     state.activeJobs.push(...generated);
@@ -250,15 +366,16 @@ export function processNextDay() {
         }
     }
 
-    // 3. Regene BargainBin
+    // 4. Regene BargainBin
     generateBargainBin();
 
-    // 4. Save state
+    // 5. Save state
     saveGame();
 
     return {
         deliveriesCount: arriving.length,
-        newJobsCount: generated.length
+        newJobsCount: generated.length,
+        expiredCount: expiredUrgentJobs.length
     };
 }
 

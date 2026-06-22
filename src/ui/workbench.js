@@ -405,7 +405,7 @@ export function renderWorkbenchTab() {
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:4px">
                     <span>Pâte thermique :</span>
-                    <span class="${currentOpenPc.thermalPasteApplied ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.thermalPasteApplied ? 'Appliquée ✓' : 'Manquante ✗'}</span>
+                    <span class="${currentOpenPc.thermalPasteApplied ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.thermalPasteApplied ? (currentOpenPc.thermalPasteType === 'liquid_metal' ? 'Métal Liquide ✓' : 'Standard ✓') : 'Manquante ✗'}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:4px">
                     <span>Câbles d'alimentation :</span>
@@ -484,10 +484,25 @@ export function renderWorkbenchTab() {
     // BIND ACTIONS FOR OPEN PC
     if (currentOpenPc) {
         document.getElementById("btn-toggle-paste").addEventListener("click", () => {
-            currentOpenPc.thermalPasteApplied = !currentOpenPc.thermalPasteApplied;
-            saveGame();
-            updateActiveJobsRequirements();
-            renderWorkbenchTab();
+            if (currentOpenPc.thermalPasteApplied) {
+                // Clear paste
+                currentOpenPc.thermalPasteApplied = false;
+                currentOpenPc.thermalPasteType = null;
+                saveGame();
+                updateActiveJobsRequirements();
+                renderWorkbenchTab();
+            } else {
+                // Apply paste
+                if (state.liquidMetalCount > 0) {
+                    openThermalPasteChoiceModal();
+                } else {
+                    currentOpenPc.thermalPasteApplied = true;
+                    currentOpenPc.thermalPasteType = "standard";
+                    saveGame();
+                    updateActiveJobsRequirements();
+                    renderWorkbenchTab();
+                }
+            }
         });
 
         document.getElementById("btn-toggle-cables").addEventListener("click", () => {
@@ -1200,4 +1215,61 @@ function putJobOnHoldFromWorkbench(job) {
     showToast(`Mission "${job.subject}" mise en attente. Le PC a été rangé en réserve.`, "info");
     
     renderWorkbenchTab();
+}
+
+function openThermalPasteChoiceModal() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "paste-choice-modal";
+
+    const content = document.createElement("div");
+    content.className = "modal-content";
+    content.style.maxWidth = "400px";
+
+    content.innerHTML = `
+        <div class="panel-header">
+            <h2>Choix de la pâte thermique</h2>
+            <button class="os-window-close" id="btn-close-paste-modal">×</button>
+        </div>
+        <div class="modal-body" style="padding:1.5rem; display:flex; flex-direction:column; gap:12px; text-align:center">
+            <p style="font-size:0.85rem; color:var(--text-secondary)">Sélectionnez le type de pâte thermique à appliquer sur le processeur :</p>
+            <button class="btn-secondary" id="btn-apply-std-paste" style="width:100%">
+                Pâte Thermique Standard (Gratuit, Illimité)
+            </button>
+            <button class="btn-primary glow-btn" id="btn-apply-lm-paste" style="width:100%; background:linear-gradient(135deg, var(--color-purple), #90f)">
+                Métal Liquide Premium (Stock : ${state.liquidMetalCount} seringues)
+            </button>
+        </div>
+    `;
+
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    document.getElementById("btn-close-paste-modal").addEventListener("click", () => {
+        overlay.remove();
+    });
+
+    document.getElementById("btn-apply-std-paste").addEventListener("click", () => {
+        currentOpenPc.thermalPasteApplied = true;
+        currentOpenPc.thermalPasteType = "standard";
+        saveGame();
+        updateActiveJobsRequirements();
+        overlay.remove();
+        renderWorkbenchTab();
+    });
+
+    document.getElementById("btn-apply-lm-paste").addEventListener("click", () => {
+        if (state.liquidMetalCount > 0) {
+            state.liquidMetalCount -= 1;
+            currentOpenPc.thermalPasteApplied = true;
+            currentOpenPc.thermalPasteType = "liquid_metal";
+            saveGame();
+            updateActiveJobsRequirements();
+            overlay.remove();
+            renderWorkbenchTab();
+            showToast("Métal Liquide Premium appliqué avec succès sur le CPU !", "success");
+        } else {
+            showToast("Plus de seringues de Métal Liquide en stock !", "error");
+        }
+    });
 }

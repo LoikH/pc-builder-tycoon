@@ -3,7 +3,7 @@
    ========================================== */
 
 import { COMPONENTS } from "../components.js";
-import { state, orderParts, saveGame } from "../state.js";
+import { state, orderParts, saveGame, getComponentMarketPrice } from "../state.js";
 import { showToast } from "../main.js";
 
 let currentCategory = "cpu";
@@ -175,7 +175,7 @@ function populateCatalog() {
             </div>
             
             <div class="part-price-row">
-                <div class="part-price">${comp.price.toFixed(2)}$</div>
+                <div class="part-price">${getComponentMarketPrice(comp).toFixed(2)}$</div>
                 ${isLocked ? 
                     `<button class="btn-buy" disabled style="border-color:var(--color-crimson); color:var(--color-crimson)">Niveau ${comp.level}</button>` :
                     `<button class="btn-buy" id="btn-add-${comp.id}">Ajouter</button>`
@@ -223,6 +223,79 @@ function populateUpgrades(grid) {
             });
         }
     });
+
+    // Liquid Metal Consumable
+    const lmCard = document.createElement("div");
+    lmCard.className = "part-card";
+    lmCard.innerHTML = `
+        <div>
+            <div class="part-category">Consommable</div>
+            <div class="part-name">Métal Liquide Premium</div>
+            <div class="part-specs">
+                <p style="font-size:0.75rem; color:var(--text-secondary)">Réduit la température sous charge de <strong>-8°C</strong>. Stock : <strong>${state.liquidMetalCount || 0}</strong>.</p>
+            </div>
+        </div>
+        <div class="part-price-row">
+            <div class="part-price">30.00$</div>
+            <button class="btn-buy" id="btn-buy-lm" ${state.money < 30 ? 'disabled' : ''}>Acheter</button>
+        </div>
+    `;
+    grid.appendChild(lmCard);
+    document.getElementById("btn-buy-lm").addEventListener("click", () => {
+        buyPremiumUpgrade("liquid_metal", 30);
+    });
+
+    // Thermal Probe permanent
+    const tpCard = document.createElement("div");
+    tpCard.className = "part-card";
+    tpCard.innerHTML = `
+        <div>
+            <div class="part-category">Outil Permanent</div>
+            <div class="part-name">Sonde Thermique Pro</div>
+            <div class="part-specs">
+                <p style="font-size:0.75rem; color:var(--text-secondary)">Alerte de sécurité orange clignotante dans VirtualOS dès que la température CPU approche des 90°C.</p>
+            </div>
+        </div>
+        <div class="part-price-row">
+            <div class="part-price">150.00$</div>
+            ${state.hasThermalProbe ? 
+                `<button class="btn-buy" disabled>Acquis</button>` :
+                `<button class="btn-buy" id="btn-buy-tp" ${state.money < 150 ? 'disabled' : ''}>Acheter</button>`
+            }
+        </div>
+    `;
+    grid.appendChild(tpCard);
+    if (!state.hasThermalProbe) {
+        document.getElementById("btn-buy-tp").addEventListener("click", () => {
+            buyPremiumUpgrade("thermal_probe", 150);
+        });
+    }
+
+    // Fast USB boot permanent
+    const fuCard = document.createElement("div");
+    fuCard.className = "part-card";
+    fuCard.innerHTML = `
+        <div>
+            <div class="part-category">Outil Permanent</div>
+            <div class="part-name">Clé USB Bootable Pro</div>
+            <div class="part-specs">
+                <p style="font-size:0.75rem; color:var(--text-secondary)">Installation de VirtualOS deux fois plus rapide (vitesse d'écriture accélérée x2).</p>
+            </div>
+        </div>
+        <div class="part-price-row">
+            <div class="part-price">200.00$</div>
+            ${state.hasFastUsb ? 
+                `<button class="btn-buy" disabled>Acquis</button>` :
+                `<button class="btn-buy" id="btn-buy-fu" ${state.money < 200 ? 'disabled' : ''}>Acheter</button>`
+            }
+        </div>
+    `;
+    grid.appendChild(fuCard);
+    if (!state.hasFastUsb) {
+        document.getElementById("btn-buy-fu").addEventListener("click", () => {
+            buyPremiumUpgrade("fast_usb", 200);
+        });
+    }
 }
 
 function buyUpgradeWorkbench(wb) {
@@ -233,6 +306,27 @@ function buyUpgradeWorkbench(wb) {
         showToast(`Établi ${wb.id} débloqué !`, "success");
         window.updateHud();
         populateCatalog();
+    }
+}
+
+function buyPremiumUpgrade(type, cost) {
+    if (state.money >= cost) {
+        state.money -= cost;
+        if (type === "liquid_metal") {
+            state.liquidMetalCount = (state.liquidMetalCount || 0) + 1;
+            showToast(`Seringue de Pâte Métal Liquide achetée ! (Stock : ${state.liquidMetalCount})`, "success");
+        } else if (type === "thermal_probe") {
+            state.hasThermalProbe = true;
+            showToast("Sonde Thermique de Précision installée dans l'atelier !", "success");
+        } else if (type === "fast_usb") {
+            state.hasFastUsb = true;
+            showToast("Clé USB Bootable Pro acquise ! L'installation de VirtualOS sera deux fois plus rapide.", "success");
+        }
+        saveGame();
+        window.updateHud();
+        populateCatalog(); // refresh
+    } else {
+        showToast("Fonds insuffisants !", "error");
     }
 }
 
@@ -266,12 +360,13 @@ function updateCartUI() {
     const cartItemsHtml = shoppingCart.map((id, index) => {
         const comp = COMPONENTS.find(c => c.id === id);
         if (!comp) return "";
-        subtotal += comp.price;
+        const mPrice = getComponentMarketPrice(comp);
+        subtotal += mPrice;
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.8rem">
                 <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${comp.name}</span>
                 <div style="display:flex; gap:10px; align-items:center">
-                    <span class="text-emerald font-mono">${comp.price}$</span>
+                    <span class="text-emerald font-mono">${mPrice}$</span>
                     <button style="background:transparent; border:none; color:var(--color-crimson); cursor:pointer; font-weight:bold" onclick="window.removeCartItem(${index})">×</button>
                 </div>
             </div>
@@ -316,7 +411,7 @@ function checkout() {
     if (shoppingCart.length === 0) return;
 
     const shipping = document.getElementById("shipping-method").value;
-    const totalCost = shoppingCart.reduce((sum, id) => sum + (COMPONENTS.find(c => c.id === id)?.price || 0), 0);
+    const totalCost = shoppingCart.reduce((sum, id) => sum + getComponentMarketPrice(COMPONENTS.find(c => c.id === id)), 0);
     const shippingFee = shipping === "express" ? 50 : 10;
     const finalTotal = totalCost + shippingFee;
 
