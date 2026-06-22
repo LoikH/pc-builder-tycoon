@@ -158,6 +158,7 @@ function populateCatalog() {
             specHtml = `
                 <div class="part-spec-item"><span>Style:</span><span>${comp.specs.style}</span></div>
                 <div class="part-spec-item"><span>Capacité:</span><span>${comp.specs.coolingPower}</span></div>
+                <div class="part-spec-item"><span>Socket:</span><span style="max-width:130px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap" title="${comp.specs.socket}">${comp.specs.socket}</span></div>
             `;
         } else if (comp.type === "case") {
             specHtml = `

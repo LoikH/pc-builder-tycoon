@@ -13,11 +13,17 @@ let currentOpenPc = null; // Reference to PC currently worked on
 
 export function renderWorkbenchTab() {
     const pane = document.getElementById("pane-workbench");
-    pane.innerHTML = "";
 
     // 1. SELECT CURRENT WORKBENCH PC
     const activeWb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
     currentOpenPc = activeWb ? activeWb.pc : null;
+
+    const monitor = document.getElementById("workbench-monitor-overlay");
+    const isOverlayActive = monitor && monitor.style.display !== "none" && window.isPcRunning;
+
+    if (!isOverlayActive) {
+        pane.innerHTML = "";
+    }
 
     // AUTO-INITIALIZE RAM AND STORAGE SLOTS
     if (currentOpenPc) {
@@ -116,6 +122,26 @@ export function renderWorkbenchTab() {
             }
         }
 
+        // Self-healing check for RAM kits (ensure they occupy exactly 2 slots)
+        for (let i = 0; i < maxSlots.ram; i++) {
+            const item = currentOpenPc.rams[i];
+            if (item && !item.kitId) {
+                const comp = getComponentById(item.partId);
+                const isKit = comp && comp.name.includes("(2x");
+                if (isKit) {
+                    item.kitId = "kit-" + generateUniqueId();
+                    const otherSlotIndex = currentOpenPc.rams.findIndex((r, idx) => idx !== i && r === null);
+                    if (otherSlotIndex !== -1) {
+                        currentOpenPc.rams[otherSlotIndex] = {
+                            partId: item.partId,
+                            condition: item.condition,
+                            kitId: item.kitId
+                        };
+                    }
+                }
+            }
+        }
+
         // Keep legacy singular ram & storage properties in sync with first items for general compat
         currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
         currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
@@ -144,6 +170,12 @@ export function renderWorkbenchTab() {
         // Render slots
         caseView.innerHTML = `
             <div class="case-schematic">
+                <!-- Case Slot -->
+                <div class="case-slot ${currentOpenPc.case ? 'filled' : ''}" id="slot-case" data-slot="case" style="top: 15px; left: 40px; width: 420px; height: 45px; z-index: 5;">
+                    <span class="case-slot-label">Boîtier PC</span>
+                    <span class="case-slot-partname">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : 'Aucun Boîtier (Composants à nu)'}</span>
+                </div>
+
                 <!-- Motherboard Slot -->
                 <div class="case-slot ${currentOpenPc.motherboard ? 'filled' : ''}" id="slot-motherboard" data-slot="motherboard">
                     <span class="case-slot-label">Carte Mère</span>
@@ -293,7 +325,12 @@ export function renderWorkbenchTab() {
             const activeRams = currentOpenPc.rams.filter(r => r);
             let totalCap = 0;
             let type = '';
+            const processedKits = new Set();
             activeRams.forEach(r => {
+                if (r.kitId) {
+                    if (processedKits.has(r.kitId)) return;
+                    processedKits.add(r.kitId);
+                }
                 const comp = getComponentById(r.partId);
                 if (comp) {
                     totalCap += parseInt(comp.specs.capacity.replace("GB", "").replace("Go", "").trim());
@@ -313,6 +350,37 @@ export function renderWorkbenchTab() {
             storageSpecText = [nvmeLabel, sataLabel].filter(Boolean).join(', ') + ` (${activeStorages.length}/${currentOpenPc.storages.length} Disques)`;
         }
 
+        // Calculate total build cost (cost of all installed parts)
+        let totalBuildCost = 0;
+        const partsKeys = ["case", "motherboard", "cpu", "cooler", "gpu", "psu"];
+        partsKeys.forEach(key => {
+            if (currentOpenPc[key] && currentOpenPc[key].partId) {
+                const comp = getComponentById(currentOpenPc[key].partId);
+                if (comp) totalBuildCost += comp.price;
+            }
+        });
+        if (currentOpenPc.rams) {
+            const processedKits = new Set();
+            currentOpenPc.rams.forEach(r => {
+                if (r && r.partId) {
+                    if (r.kitId) {
+                        if (processedKits.has(r.kitId)) return;
+                        processedKits.add(r.kitId);
+                    }
+                    const comp = getComponentById(r.partId);
+                    if (comp) totalBuildCost += comp.price;
+                }
+            });
+        }
+        if (currentOpenPc.storages) {
+            currentOpenPc.storages.forEach(s => {
+                if (s && s.partId) {
+                    const comp = getComponentById(s.partId);
+                    if (comp) totalBuildCost += comp.price;
+                }
+            });
+        }
+
         specCard.innerHTML = `
             <div style="font-weight:700; font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between">
                 <span>Configuration Actuelle</span>
@@ -320,6 +388,7 @@ export function renderWorkbenchTab() {
             </div>
 
             <div class="pc-specs-list">
+                <div class="pc-spec-row"><span class="pc-spec-name">Boîtier</span><span class="pc-spec-val">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : 'Manquant'}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Carte Mère</span><span class="pc-spec-val">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : 'Manquante'}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Processeur</span><span class="pc-spec-val">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Manquant'}</span></div>
                 <div class="pc-spec-row"><span class="pc-spec-name">Ventirad</span><span class="pc-spec-val">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Manquant'}</span></div>
@@ -341,6 +410,10 @@ export function renderWorkbenchTab() {
                 <div style="display:flex; justify-content:space-between; margin-top:4px">
                     <span>Câbles d'alimentation :</span>
                     <span class="${currentOpenPc.cablesConnected ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.cablesConnected ? 'Branchés ✓' : 'Débranchés ✗'}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:4px; font-weight: 600; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px; margin-top: 8px;">
+                    <span class="text-cyan">Coût total des pièces :</span>
+                    <span class="text-emerald font-mono">${totalBuildCost.toFixed(2)}$</span>
                 </div>
             </div>
 
@@ -386,8 +459,14 @@ export function renderWorkbenchTab() {
         rightSidebar.appendChild(specCard);
     }
     
-    grid.appendChild(rightSidebar);
-    pane.appendChild(grid);
+    const existingSidebar = pane.querySelector(".workbench-sidebar");
+    if (isOverlayActive && existingSidebar) {
+        existingSidebar.innerHTML = rightSidebar.innerHTML;
+    } else {
+        grid.appendChild(caseView);
+        grid.appendChild(rightSidebar);
+        pane.appendChild(grid);
+    }
 
     // BIND WORKBENCH TABS EVENT
     state.workbenches.forEach(wb => {
@@ -423,14 +502,16 @@ export function renderWorkbenchTab() {
         });
 
         // Slots click triggers drawer
-        pane.querySelectorAll(".case-schematic .case-slot").forEach(slot => {
-            slot.addEventListener("click", (e) => {
-                const slotType = slot.getAttribute("data-slot");
-                const slotIndex = slot.getAttribute("data-index");
-                // Stop click propagation if click was directly inside slot
-                openPartInstallerDrawer(slotType, slotIndex !== null ? parseInt(slotIndex) : null);
+        if (!isOverlayActive) {
+            pane.querySelectorAll(".case-schematic .case-slot").forEach(slot => {
+                slot.addEventListener("click", (e) => {
+                    const slotType = slot.getAttribute("data-slot");
+                    const slotIndex = slot.getAttribute("data-index");
+                    // Stop click propagation if click was directly inside slot
+                    openPartInstallerDrawer(slotType, slotIndex !== null ? parseInt(slotIndex) : null);
+                });
             });
-        });
+        }
 
         // Flip PC sell and scrap buttons
         const linkedJob = state.activeJobs.find(j => j.id === currentOpenPc.orderId);
@@ -459,45 +540,53 @@ function populateImportArea() {
     // Search inventory for items of type 'pc_flip'
     const flips = state.inventory.filter(item => item.type === "pc_flip");
 
-    if (flips.length === 0) {
-        area.innerHTML = `
-            <div style="font-size:0.75rem; color:var(--text-muted)">Aucun PC d'occasion en stock.</div>
+    let importHtml = "";
+    if (flips.length > 0) {
+        importHtml = `
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px">
+                <span class="stat-label">Importer un PC d'occasion</span>
+                <select id="select-import-pc" style="background:#111; color:#fff; border:1px solid var(--border-color); font-size:0.8rem; padding:6px; border-radius:6px">
+                    ${flips.map(f => `<option value="${f.id}">${f.name} (${f.pricePaid}$)</option>`).join('')}
+                </select>
+                <button class="btn-primary glow-btn" id="btn-import-pc-action">
+                    Placer sur l'Établi
+                </button>
+            </div>
         `;
-        return;
+    } else {
+        importHtml = `
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px">Aucun PC d'occasion en stock.</div>
+        `;
     }
 
     area.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:8px">
-            <span class="stat-label">Importer un PC d'occasion</span>
-            <select id="select-import-pc" style="background:#111; color:#fff; border:1px solid var(--border-color); font-size:0.8rem; padding:6px; border-radius:6px">
-                ${flips.map(f => `<option value="${f.id}">${f.name} (${f.pricePaid}$)</option>`).join('')}
-            </select>
-            <button class="btn-primary glow-btn" id="btn-import-pc-action">
-                Placer sur l'Établi
-            </button>
-            <button class="btn-secondary" id="btn-create-scratch-build" style="margin-top:10px; font-size:0.75rem">
-                Commencer un boitier vierge (Builder libre)
+            ${importHtml}
+            <button class="btn-primary glow-btn" id="btn-create-scratch-build" style="background:linear-gradient(135deg, var(--color-purple), #90f); width:100%">
+                Commencer un montage de zéro
             </button>
         </div>
     `;
 
-    document.getElementById("btn-import-pc-action").addEventListener("click", () => {
-        const id = document.getElementById("select-import-pc").value;
-        const flipItem = state.inventory.find(i => i.id === id);
-        if (flipItem) {
-            // Load to current workbench
-            const wb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
-            wb.pc = flipItem.pc;
-            wb.pc.name = flipItem.name; // preserve flip name
-            wb.pc.isCustom = true;
-            
-            // Remove from inventory
-            state.inventory = state.inventory.filter(i => i.id !== id);
-            saveGame();
-            showToast("PC d'occasion importé sur l'établi !", "success");
-            renderWorkbenchTab();
-        }
-    });
+    if (flips.length > 0) {
+        document.getElementById("btn-import-pc-action").addEventListener("click", () => {
+            const id = document.getElementById("select-import-pc").value;
+            const flipItem = state.inventory.find(i => i.id === id);
+            if (flipItem) {
+                // Load to current workbench
+                const wb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
+                wb.pc = flipItem.pc;
+                wb.pc.name = flipItem.name; // preserve flip name
+                wb.pc.isCustom = true;
+                
+                // Remove from inventory
+                state.inventory = state.inventory.filter(i => i.id !== id);
+                saveGame();
+                showToast("PC d'occasion importé sur l'établi !", "success");
+                renderWorkbenchTab();
+            }
+        });
+    }
 
     document.getElementById("btn-create-scratch-build").addEventListener("click", () => {
         const wb = state.workbenches.find(w => w.id === state.selectedWorkbenchId);
@@ -551,6 +640,32 @@ function togglePcPower() {
         }
         if (!currentOpenPc.cablesConnected) {
             showToast("Boot échoué : Les câbles d'alimentation ne sont pas branchés !", "error");
+            return;
+        }
+
+        // Broken components check (Diagnostics)
+        if (currentOpenPc.psu.condition === "broken") {
+            showToast("Boot échoué : L'alimentation est défectueuse. Impossible d'allumer la machine !", "error");
+            return;
+        }
+        if (currentOpenPc.motherboard.condition === "broken") {
+            showToast("Boot échoué : La carte mère est défectueuse (Court-circuit sur le PCB) !", "error");
+            return;
+        }
+        if (currentOpenPc.cpu.condition === "broken") {
+            showToast("Boot échoué : Écran noir. Le processeur (CPU) est défectueux ou grillé !", "error");
+            return;
+        }
+        if (currentOpenPc.rams.some(r => r && r.condition === "broken")) {
+            showToast("Boot échoué : Erreur de mémoire vive (RAM). Une ou plusieurs barrettes sont défectueuses !", "error");
+            return;
+        }
+        if (currentOpenPc.gpu.condition === "broken") {
+            showToast("Boot échoué : Aucun signal d'affichage. La carte graphique (GPU) est défectueuse !", "error");
+            return;
+        }
+        if (currentOpenPc.storages.some(s => s && s.condition === "broken")) {
+            showToast("Boot échoué : Erreur de lecture de disque. Le périphérique de stockage est défectueux !", "error");
             return;
         }
 
@@ -722,6 +837,16 @@ function installPart(slotType, invItem, slotIndex = null) {
                 return;
             }
         }
+        
+        // RAM kit capacity check (must have at least one other empty slot)
+        const isKit = comp.name.includes("(2x");
+        if (isKit) {
+            const otherSlotIndex = currentOpenPc.rams.findIndex((r, idx) => idx !== slotIndex && r === null);
+            if (otherSlotIndex === -1) {
+                showToast(`Incompatible : Ce kit de mémoire (2 barrettes) nécessite au moins 2 emplacements RAM libres sur la carte mère !`, "error");
+                return;
+            }
+        }
     }
     else if (slotType === "storage") {
         if (currentOpenPc.motherboard) {
@@ -754,10 +879,28 @@ function installPart(slotType, invItem, slotIndex = null) {
         if (currentOpenPc[slotType + "s"][slotIndex]) {
             uninstallPart(slotType, slotIndex);
         }
-        currentOpenPc[slotType + "s"][slotIndex] = {
-            partId: invItem.partId,
-            condition: invItem.condition
-        };
+        
+        if (slotType === "ram" && comp.name.includes("(2x")) {
+            const kitId = "kit-" + generateUniqueId();
+            const otherSlotIndex = currentOpenPc.rams.findIndex((r, idx) => idx !== slotIndex && r === null);
+            
+            currentOpenPc.rams[slotIndex] = {
+                partId: invItem.partId,
+                condition: invItem.condition,
+                kitId: kitId
+            };
+            currentOpenPc.rams[otherSlotIndex] = {
+                partId: invItem.partId,
+                condition: invItem.condition,
+                kitId: kitId
+            };
+        } else {
+            currentOpenPc[slotType + "s"][slotIndex] = {
+                partId: invItem.partId,
+                condition: invItem.condition
+            };
+        }
+        
         // Keep single property synchronized
         if (slotType === "ram") {
             currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
@@ -799,28 +942,54 @@ function installPart(slotType, invItem, slotIndex = null) {
 function uninstallPart(slotType, slotIndex = null) {
     const installed = (slotType === "ram" || slotType === "storage") ? currentOpenPc[slotType + "s"][slotIndex] : currentOpenPc[slotType];
     if (installed) {
-        // Return to inventory
-        state.inventory.push({
-            id: generateUniqueId(),
-            partId: installed.partId,
-            condition: installed.condition,
-            pricePaid: getComponentById(installed.partId).price
-        });
-
-        // Clear slot
+        // Clear slot and return to inventory
         if (slotType === "ram" || slotType === "storage") {
-            currentOpenPc[slotType + "s"][slotIndex] = null;
-            if (slotType === "ram") {
+            if (slotType === "ram" && installed.kitId) {
+                // Return EXACTLY ONE kit to inventory
+                state.inventory.push({
+                    id: generateUniqueId(),
+                    partId: installed.partId,
+                    condition: installed.condition,
+                    pricePaid: getComponentById(installed.partId).price
+                });
+                
+                // Clear all slots of this kit
+                currentOpenPc.rams.forEach((r, idx) => {
+                    if (r && r.kitId === installed.kitId) {
+                        currentOpenPc.rams[idx] = null;
+                    }
+                });
+                
                 currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
             } else {
-                currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
-                // Reset OS if no storage remains
-                if (!currentOpenPc.storage) {
-                    window.isPcRunning = false;
-                    closeVirtualOs();
+                state.inventory.push({
+                    id: generateUniqueId(),
+                    partId: installed.partId,
+                    condition: installed.condition,
+                    pricePaid: getComponentById(installed.partId).price
+                });
+                
+                currentOpenPc[slotType + "s"][slotIndex] = null;
+                if (slotType === "ram") {
+                    currentOpenPc.ram = currentOpenPc.rams.find(r => r !== null) || null;
+                } else {
+                    currentOpenPc.storage = currentOpenPc.storages.find(s => s !== null) || null;
+                    // Reset OS if no storage remains
+                    if (!currentOpenPc.storage) {
+                        window.isPcRunning = false;
+                        closeVirtualOs();
+                    }
                 }
             }
         } else {
+            // Return to inventory
+            state.inventory.push({
+                id: generateUniqueId(),
+                partId: installed.partId,
+                condition: installed.condition,
+                pricePaid: getComponentById(installed.partId).price
+            });
+            
             currentOpenPc[slotType] = null;
 
             // Reset OS and running states on motherboard/cpu changes
@@ -846,8 +1015,13 @@ function uninstallPart(slotType, slotIndex = null) {
                 });
 
                 if (currentOpenPc.rams) {
+                    const returnedKits = new Set();
                     currentOpenPc.rams.forEach(r => {
                         if (r) {
+                            if (r.kitId) {
+                                if (returnedKits.has(r.kitId)) return;
+                                returnedKits.add(r.kitId);
+                            }
                             state.inventory.push({
                                 id: generateUniqueId(),
                                 partId: r.partId,
@@ -968,8 +1142,13 @@ function scrapPcToInventory() {
     });
 
     if (currentOpenPc.rams) {
+        const returnedKits = new Set();
         currentOpenPc.rams.forEach(r => {
             if (r) {
+                if (r.kitId) {
+                    if (returnedKits.has(r.kitId)) return;
+                    returnedKits.add(r.kitId);
+                }
                 state.inventory.push({
                     id: generateUniqueId(),
                     partId: r.partId,
