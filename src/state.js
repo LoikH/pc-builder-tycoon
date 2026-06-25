@@ -28,7 +28,8 @@ const DEFAULT_STATE = {
     hasThermalProbe: false,
     hasFastUsb: false,
     showroomPcs: [],
-    hasSeenIntro: false
+    hasSeenIntro: false,
+    language: "fr"
 };
 
 // MARKET EVENTS DATABASE

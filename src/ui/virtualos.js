@@ -7,6 +7,7 @@ import { showToast } from "../main.js";
 import { getComponentById } from "../components.js";
 import { calculatePcBenchmark } from "../jobs.js";
 import { renderWorkbenchTab } from "./workbench.js";
+import { t } from "../translations.js";
 
 let activePc = null;
 let appWindows = {};
@@ -57,15 +58,15 @@ function runBootSequence(container) {
 
     bootDiv.innerHTML = `
         <div class="os-bios-text">
-            AMERICAN MEGATRENDS BIOS v4.0621
-            Processeurs détectés : ${cpu.name} @ ${cpu.specs.speed}
-            Mémoire RAM active : ${ram.specs.capacity} @ ${ram.specs.speed} (${ram.specs.ramType})
-            Contrôleur Graphique : ${gpu.name}
-            Disque de démarrage : ${storage.name} (${storage.specs.storageType})
+            ${t("os.boot.post")}
+            ${t("os.boot.cpu")} ${cpu.name} @ ${cpu.specs.speed}
+            ${t("os.boot.ram")} ${ram.specs.capacity} @ ${ram.specs.speed} (${ram.specs.ramType})
+            ${t("os.boot.gpu")} ${gpu.name}
+            ${t("os.boot.storage")} ${storage.name} (${storage.specs.storageType})
             
-            Vérification de l'alimentation... OK
-            Test de la mémoire... Succès
-            Recherche du système d'exploitation...
+            ${t("os.boot.psu")}
+            ${t("os.boot.memory")}
+            ${t("os.boot.searching")}
         </div>
     `;
 
@@ -78,10 +79,10 @@ function runBootSequence(container) {
             bootDiv.innerHTML = `
                 <div style="text-align:center; font-family:var(--font-mono); padding:2rem">
                     <span style="font-size:3rem">⚠️</span>
-                    <p style="margin-top:15px; font-weight:700">Aucun système d'exploitation trouvé.</p>
-                    <p style="font-size:0.8rem; color:#888; margin-top:5px">Insérez la clé USB d'installation pour démarrer le programme d'installation.</p>
+                    <p style="margin-top:15px; font-weight:700">${t("os.boot.no_os")}</p>
+                    <p style="font-size:0.8rem; color:#888; margin-top:5px">${t("os.boot.no_os_sub")}</p>
                     <button class="btn-primary" id="btn-os-install" style="margin-top:20px; font-size:0.8rem">
-                        Insérer clé USB (Installer VirtualOS)
+                        ${t("os.boot.btn_os_install")}
                     </button>
                 </div>
             `;
@@ -99,11 +100,11 @@ function runBootSequence(container) {
 function runOsInstaller(bootDiv) {
     bootDiv.innerHTML = `
         <div style="width:300px; text-align:center">
-            <h3 style="margin-bottom:15px">Installation de VirtualOS v4.1</h3>
+            <h3 style="margin-bottom:15px">${t("os.install.title")}</h3>
             <div class="xp-bar-container" style="height:10px; margin-bottom:10px">
                 <div class="xp-bar-fill" id="install-progress" style="width:0%"></div>
             </div>
-            <p style="font-size:0.75rem; color:#888" id="install-text">Formatage du disque de stockage...</p>
+            <p style="font-size:0.75rem; color:#888" id="install-text">${t("os.install.step0")}</p>
         </div>
     `;
 
@@ -112,25 +113,27 @@ function runOsInstaller(bootDiv) {
     const progressText = document.getElementById("install-text");
 
     const steps = [
-        "Création des partitions NTFS...",
-        "Copie des fichiers d'installation (12%)...",
-        "Copie des fichiers d'installation (45%)...",
-        "Copie des fichiers d'installation (78%)...",
-        "Configuration des pilotes de périphériques...",
-        "Finalisation des paramètres du bureau..."
+        t("os.install.step1"),
+        t("os.install.step2"),
+        t("os.install.step3"),
+        t("os.install.step4"),
+        t("os.install.step5"),
+        t("os.install.step6")
     ];
 
     const interval = setInterval(() => {
         const increment = state.hasFastUsb ? 20 : 10;
         progress += increment;
         if (progressFill) progressFill.style.width = `${Math.min(progress, 100)}%`;
-        if (progressText) progressText.textContent = steps[Math.floor(progress / 17)] || "Presque fini...";
+        if (progressText) progressText.textContent = steps[Math.floor(progress / 17)] || "Almost finished...";
 
         if (progress >= 100) {
             clearInterval(interval);
             activePc.hasOs = true;
             saveGame();
-            showToast("VirtualOS installé avec succès !", "success");
+            
+            const cleanMsg = state.language === "en" ? "VirtualOS installed successfully!" : "VirtualOS installé avec succès !";
+            showToast(cleanMsg, "success");
             
             // Reload screen
             const monitor = document.getElementById("workbench-monitor-overlay");
@@ -154,23 +157,23 @@ function loadDesktop(container) {
     desktop.innerHTML = `
         <div class="os-icon" id="icon-sysinfo">
             <span class="os-icon-img">ℹ️</span>
-            <span class="os-icon-label">Infos Système</span>
+            <span class="os-icon-label">${t("os.desktop.sysinfo")}</span>
         </div>
         <div class="os-icon" id="icon-scanner">
             <span class="os-icon-img">🛡️</span>
-            <span class="os-icon-label">Virus Scanner</span>
+            <span class="os-icon-label">${t("os.desktop.scanner")}</span>
         </div>
         <div class="os-icon" id="icon-benchmark">
             <span class="os-icon-img">🏎️</span>
-            <span class="os-icon-label">3D Benchmark</span>
+            <span class="os-icon-label">${t("os.desktop.benchmark")}</span>
         </div>
         <div class="os-icon" id="icon-overclock">
             <span class="os-icon-img">⚙️</span>
-            <span class="os-icon-label">Overclocking</span>
+            <span class="os-icon-label">${t("os.desktop.overclock")}</span>
         </div>
 
         <button class="btn-secondary" id="btn-os-shutdown" style="position:absolute; bottom:15px; right:15px; font-size:0.75rem; background:rgba(0,0,0,0.6)">
-            Quitter l'OS ✕
+            ${t("os.desktop.shutdown")}
         </button>
     `;
 
@@ -262,7 +265,7 @@ function makeElementDraggable(elmnt) {
 
 // 1. APP: SYSTEM INFO
 function openSysInfoApp() {
-    const win = createProgramWindow("Informations Système", 400, 320);
+    const win = createProgramWindow(t("os.sysinfo.title"), 400, 320);
     const body = win.querySelector(".os-window-body");
 
     const cpu = getComponentById(activePc.cpu.partId);
@@ -270,7 +273,7 @@ function openSysInfoApp() {
     const storage = getComponentById(activePc.storage.partId);
 
     // Calculate sum capacity of all active RAM slots
-    let ramCapacityText = "Manquante";
+    let ramCapacityText = state.language === "en" ? "Missing" : "Manquante";
     if (activePc.rams && activePc.rams.some(r => r)) {
         const activeRams = activePc.rams.filter(r => r);
         let totalCap = 0;
@@ -309,19 +312,19 @@ function openSysInfoApp() {
 
     body.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:10px">
-            <h3 style="color:var(--color-cyan)">Fiche Technique Matérielle</h3>
+            <h3 style="color:var(--color-cyan)">${t("os.sysinfo.subtitle")}</h3>
             <div style="display:flex; flex-direction:column; gap:5px; font-size:0.85rem">
                 <p><strong>CPU :</strong> ${cpu.name} (${cpu.specs.cores})</p>
-                <p><strong>Fréquence active :</strong> ${(parseFloat(cpu.specs.speed) * cpuOverclockMult).toFixed(2)} GHz</p>
-                <p><strong>Température CPU :</strong> <span id="sysinfo-temp" style="font-weight:700">${currentTemp}°C</span></p>
+                <p><strong>${t("os.sysinfo.activeFreq")}</strong> ${(parseFloat(cpu.specs.speed) * cpuOverclockMult).toFixed(2)} GHz</p>
+                <p><strong>${t("os.sysinfo.temp")}</strong> <span id="sysinfo-temp" style="font-weight:700">${currentTemp}°C</span></p>
                 <p><strong>GPU :</strong> ${gpu.name} (${gpu.specs.vram})</p>
-                <p><strong>Fréquence GPU :</strong> ${(parseFloat(gpu.specs.speed) * gpuOverclockMult).toFixed(0)} MHz</p>
-                <p><strong>Mémoire Vive :</strong> ${ramCapacityText}</p>
-                <p><strong>Stockage Principal :</strong> ${storage.name} (${storage.specs.capacity} M.2)</p>
+                <p><strong>${t("os.sysinfo.activeGpu")}</strong> ${(parseFloat(gpu.specs.speed) * gpuOverclockMult).toFixed(0)} MHz</p>
+                <p><strong>${state.language === "en" ? "RAM Memory:" : "Mémoire Vive :"}</strong> ${ramCapacityText}</p>
+                <p><strong>${state.language === "en" ? "Primary Storage:" : "Stockage Principal :"}</strong> ${storage.name} (${storage.specs.capacity} M.2)</p>
             </div>
             
             <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:10px; margin-top:5px; font-size:0.75rem; color:#888">
-                OS installé : VirtualOS Desktop Edition v4.1 build 2026.
+                ${t("os.sysinfo.osVersion")}
             </div>
         </div>
     `;
@@ -341,17 +344,17 @@ function openSysInfoApp() {
 
 // 2. APP: VIRUS SCANNER
 function openVirusScannerApp() {
-    const win = createProgramWindow("SecuriGuard Virus Scanner", 400, 300);
+    const win = createProgramWindow(t("os.scanner.title"), 400, 300);
     const body = win.querySelector(".os-window-body");
 
     body.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:100%; gap:15px">
             <span style="font-size:2.5rem">🛡️</span>
-            <div style="font-weight:600">Scanner de Sécurité Intégré</div>
-            <div id="scan-log" style="font-size:0.8rem; color:#888">Protection résidente active. Prêt pour l'analyse.</div>
+            <div style="font-weight:600">${t("os.scanner.sub")}</div>
+            <div id="scan-log" style="font-size:0.8rem; color:#888">${t("os.scanner.ready")}</div>
             
             <button class="btn-primary" id="btn-start-scan" style="font-size:0.8rem">
-                Lancer une Analyse Complète
+                ${t("os.scanner.btnScan")}
             </button>
         </div>
     `;
@@ -364,16 +367,15 @@ function openVirusScannerApp() {
 function runScanner(body) {
     body.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:12px">
-            <div style="font-weight:600" id="scan-step-title">Analyse en cours...</div>
+            <div style="font-weight:600" id="scan-step-title">${t("os.scanner.scanning")}</div>
             <div class="xp-bar-container" style="width:250px; height:8px">
                 <div class="xp-bar-fill" id="scan-progress" style="width:0%"></div>
             </div>
-            <div style="font-size:0.7rem; color:#888" id="scan-file-text">Analyse de System32...</div>
+            <div style="font-size:0.7rem; color:#888" id="scan-file-text">Scanning System32...</div>
         </div>
     `;
 
     const progressFill = document.getElementById("scan-progress");
-    const stepTitle = document.getElementById("scan-step-title");
     const fileText = document.getElementById("scan-file-text");
 
     let progress = 0;
@@ -382,11 +384,11 @@ function runScanner(body) {
         if (progressFill) progressFill.style.width = `${progress}%`;
         
         if (progress === 30) {
-            fileText.textContent = "Recherche de logiciels espions...";
+            fileText.textContent = t("os.scanner.step1");
         } else if (progress === 60) {
-            fileText.textContent = "Analyse des clés de registre infectées...";
+            fileText.textContent = t("os.scanner.step2");
         } else if (progress === 80) {
-            fileText.textContent = "Examen de la mémoire vive active...";
+            fileText.textContent = t("os.scanner.step3");
         }
 
         if (progress >= 100) {
@@ -397,18 +399,21 @@ function runScanner(body) {
                 body.innerHTML = `
                     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:100%; gap:10px">
                         <span class="text-crimson" style="font-size:2.5rem">⚠️</span>
-                        <div style="font-weight:700" class="text-crimson">2 Menaces Détectées !</div>
-                        <p style="font-size:0.75rem; color:#aaa">Trojan.Miner.Bitcoin & Adware.PopUpMagic infectent vos registres.</p>
+                        <div style="font-weight:700" class="text-crimson">${t("os.scanner.alert")}</div>
+                        <p style="font-size:0.75rem; color:#aaa">${t("os.scanner.alertSub")}</p>
                         
                         <button class="btn-primary" id="btn-clean-viruses" style="margin-top:10px; background:linear-gradient(135deg, var(--color-purple), #90f)">
-                            Nettoyer et Désinfecter
+                            ${t("os.scanner.btnClean")}
                         </button>
                     </div>
                 `;
                 document.getElementById("btn-clean-viruses").addEventListener("click", () => {
                     activePc.isClean = true;
                     saveGame();
-                    showToast("Système nettoyé avec succès !", "success");
+                    
+                    const cleanedMsg = state.language === "en" ? "System cleaned successfully!" : "Système nettoyé avec succès !";
+                    showToast(cleanedMsg, "success");
+                    
                     updateActiveJobsRequirements();
                     renderWorkbenchTab();
                     openVirusScannerApp(); // refresh app
@@ -418,18 +423,19 @@ function runScanner(body) {
                 body.innerHTML = `
                     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:100%; gap:10px">
                         <span class="text-emerald" style="font-size:2.5rem">✓</span>
-                        <div style="font-weight:700" class="text-emerald">Système Sain !</div>
-                        <p style="font-size:0.75rem; color:#888">Aucun virus, cheval de troie ou logiciel publicitaire détecté.</p>
-                        <button class="btn-secondary" onclick="window.closeSecuriGuard()" style="margin-top:10px; font-size:0.75rem">Fermer</button>
+                        <div style="font-weight:700" class="text-emerald">${t("os.scanner.cleanSuccess")}</div>
+                        <p style="font-size:0.75rem; color:#888">${t("os.scanner.cleanSuccessSub")}</p>
+                        <button class="btn-secondary" id="btn-close-securiguard" style="margin-top:10px; font-size:0.75rem">${t("os.scanner.btnClose")}</button>
                     </div>
                 `;
-                window.closeSecuriGuard = () => {
-                    const win = appWindows["SecuriGuard Virus Scanner"];
+                
+                document.getElementById("btn-close-securiguard").addEventListener("click", () => {
+                    const win = appWindows[t("os.scanner.title")];
                     if (win) {
                         win.remove();
-                        delete appWindows["SecuriGuard Virus Scanner"];
+                        delete appWindows[t("os.scanner.title")];
                     }
-                };
+                });
             }
         }
     }, 300);
@@ -439,18 +445,18 @@ function runScanner(body) {
 
 // 3. APP: BENCHMARK
 function openBenchmarkApp() {
-    const win = createProgramWindow("3D Benchmark Tool v3.0", 450, 360);
+    const win = createProgramWindow(t("os.bench.title"), 450, 360);
     const body = win.querySelector(".os-window-body");
 
     body.innerHTML = `
         <div class="bench-runner" id="bench-app-container">
             <span style="font-size:2.5rem">🏎️</span>
-            <div style="font-weight:600">Simulateur de Rendu Graphique 3D</div>
+            <div style="font-weight:600">${t("os.bench.sub")}</div>
             <p style="font-size:0.8rem; text-align:center; color:#888; max-width:300px">
-                Ce test va solliciter le processeur et la carte graphique à 100% de leur charge thermique pour mesurer les performances.
+                ${t("os.bench.text")}
             </p>
             <button class="btn-primary" id="btn-run-benchmark" style="font-size:0.85rem">
-                Lancer le Test Graphique
+                ${t("os.bench.btnRun")}
             </button>
         </div>
     `;
@@ -466,7 +472,7 @@ function startBenchmarkSimulation(body) {
             <div class="bench-gauge-container">
                 <canvas class="bench-canvas-simulation" id="bench-canvas"></canvas>
                 <div class="bench-progress-card">
-                    <div style="font-size:0.75rem; color:#aaa; margin-bottom:5px">Rendu Graphique en cours...</div>
+                    <div style="font-size:0.75rem; color:#aaa; margin-bottom:5px">${t("os.bench.rendering")}</div>
                     <div class="bench-score-large" id="bench-live-score">0</div>
                     <div class="bench-temp-indicator">CPU Temp : <span id="bench-live-temp">42</span>°C</div>
                 </div>
@@ -474,7 +480,7 @@ function startBenchmarkSimulation(body) {
             <div class="xp-bar-container" style="width:100%; height:6px">
                 <div class="xp-bar-fill" id="bench-progress" style="width:0%"></div>
             </div>
-            <p style="font-size:0.75rem; color:#888" id="bench-phase-label">Chargement des géométries polygonales...</p>
+            <p style="font-size:0.75rem; color:#888" id="bench-phase-label">Loading volumetric shaders...</p>
         </div>
     `;
 
@@ -555,7 +561,7 @@ function startBenchmarkSimulation(body) {
                 liveTempText.style.color = "var(--color-crimson)";
                 // Blinking safety warning if thermal probe is installed
                 if (state.hasThermalProbe) {
-                    phaseLabel.innerHTML = `<span class="text-crimson font-mono" style="animation: blink 1s infinite">⚠️ ALERTE SURCHAUFFE CPU (${liveTemp}°C) - LIMITE CRITIQUE !</span>`;
+                    phaseLabel.innerHTML = `<span class="text-crimson font-mono" style="animation: blink 1s infinite">${t("os.bench.overheatWarning", { temp: liveTemp })}</span>`;
                 }
             } else if (liveTemp >= 72) {
                 liveTempText.style.color = "var(--color-amber)";
@@ -564,11 +570,11 @@ function startBenchmarkSimulation(body) {
 
         // Phase texts
         if (progress === 20) {
-            phaseLabel.textContent = "Test CPU : Simulation physique complexe...";
+            phaseLabel.textContent = t("os.bench.step1");
         } else if (progress === 50) {
-            phaseLabel.textContent = "Test GPU : Shaders d'illumination globale...";
+            phaseLabel.textContent = t("os.bench.step2");
         } else if (progress === 80) {
-            phaseLabel.textContent = "Test final combiné : Calcul des FPS...";
+            phaseLabel.textContent = t("os.bench.step3");
         }
 
         // 3. BSOD / Thermal Limit Check
@@ -576,7 +582,9 @@ function startBenchmarkSimulation(body) {
             // CRASH!
             clearInterval(interval);
             cancelAnimationFrame(animId);
-            triggerBsod("WHEA_UNCORRECTABLE_ERROR", "Le processeur a dépassé le seuil de sécurité thermique de 98°C.");
+            
+            const thermalMsg = state.language === "en" ? "Processor exceeded critical safe thermal threshold of 98°C." : "Le processeur a dépassé le seuil de sécurité thermique de 98°C.";
+            triggerBsod("WHEA_UNCORRECTABLE_ERROR", thermalMsg);
             return;
         }
 
@@ -587,7 +595,9 @@ function startBenchmarkSimulation(body) {
             // Stability failure crash!
             clearInterval(interval);
             cancelAnimationFrame(animId);
-            triggerBsod("SYSTEM_THREAD_EXCEPTION_NOT_HANDLED", "Overclock instable : Tension VCore insuffisante pour la fréquence CPU réclamée.");
+            
+            const ocErrorMsg = state.language === "en" ? "Unstable Overclock: Insufficient VCore voltage for requested CPU Frequency." : "Overclock instable : Tension VCore insuffisante pour la fréquence CPU réclamée.";
+            triggerBsod("SYSTEM_THREAD_EXCEPTION_NOT_HANDLED", ocErrorMsg);
             return;
         }
 
@@ -604,26 +614,26 @@ function startBenchmarkSimulation(body) {
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; height:100%; gap:15px">
                     <span class="text-emerald" style="font-size:3rem">🏆</span>
                     <div>
-                        <div class="stat-label">Rapport de performances</div>
+                        <div class="stat-label">${t("os.bench.report")}</div>
                         <div style="font-size:1.8rem; font-weight:800; color:var(--color-emerald)">${benchmarkFinal} Points</div>
                     </div>
                     <div style="font-size:0.8rem; color:#888">
-                        CPU stable à max ${liveTemp}°C.<br>
-                        Tension VCore : ${coreVoltage.toFixed(2)}V
+                        ${t("os.bench.stable", { temp: liveTemp })}<br>
+                        ${t("os.bench.vcore")} ${coreVoltage.toFixed(2)}V
                     </div>
-                    <button class="btn-primary" onclick="window.closeBench()" style="font-size:0.8rem">Accepter</button>
+                    <button class="btn-primary" id="btn-close-bench" style="font-size:0.8rem">${t("os.bench.btnAccept")}</button>
                 </div>
             `;
 
-            window.closeBench = () => {
-                const win = appWindows["3D Benchmark Tool v3.0"];
+            document.getElementById("btn-close-bench").addEventListener("click", () => {
+                const win = appWindows[t("os.bench.title")];
                 if (win) {
                     win.remove();
-                    delete appWindows["3D Benchmark Tool v3.0"];
+                    delete appWindows[t("os.bench.title")];
                 }
                 updateActiveJobsRequirements();
                 renderWorkbenchTab();
-            };
+            });
         }
     }, 250);
 
@@ -632,17 +642,17 @@ function startBenchmarkSimulation(body) {
 
 // 4. APP: OVERCLOCKING
 function openOverclockApp() {
-    const win = createProgramWindow("Overclock-O-Matic Pro", 400, 340);
+    const win = createProgramWindow(t("os.oc.title"), 400, 340);
     const body = win.querySelector(".os-window-body");
 
     body.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.2rem">
-            <h3 style="color:var(--color-purple); font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:5px">Optimisation Fréquences</h3>
+            <h3 style="color:var(--color-purple); font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:5px">${t("os.oc.sub")}</h3>
             
             <!-- CPU MULTIPLIER -->
             <div class="oc-slider-row">
                 <label>
-                    <span>Coefficient Fréquence CPU</span>
+                    <span>${t("os.oc.cpuMult")}</span>
                     <span id="oc-cpu-mult-val">${cpuOverclockMult.toFixed(2)}x</span>
                 </label>
                 <input type="range" id="oc-cpu-mult-range" min="1.0" max="1.6" step="0.05" value="${cpuOverclockMult}">
@@ -651,7 +661,7 @@ function openOverclockApp() {
             <!-- CPU VOLTAGE -->
             <div class="oc-slider-row">
                 <label>
-                    <span>Tension VCore (Alimentation CPU)</span>
+                    <span>${t("os.oc.vcore")}</span>
                     <span id="oc-voltage-val">${coreVoltage.toFixed(2)} V</span>
                 </label>
                 <input type="range" id="oc-voltage-range" min="1.15" max="1.50" step="0.02" value="${coreVoltage}">
@@ -660,14 +670,14 @@ function openOverclockApp() {
             <!-- GPU CORE CLOCK -->
             <div class="oc-slider-row">
                 <label>
-                    <span>Fréquence GPU Clock</span>
+                    <span>${t("os.oc.gpuFreq")}</span>
                     <span id="oc-gpu-mult-val">${gpuOverclockMult.toFixed(2)}x</span>
                 </label>
                 <input type="range" id="oc-gpu-mult-range" min="1.0" max="1.3" step="0.05" value="${gpuOverclockMult}">
             </div>
 
             <div style="background:rgba(255, 170, 0, 0.08); border:1px solid rgba(255, 170, 0, 0.2); border-radius:6px; padding:8px; font-size:0.7rem; color:var(--text-secondary)">
-                ⚠️ <strong>Attention :</strong> L'augmentation de la tension augmente exponentiellement la chaleur dégagée. Un overclock instable provoquera un plantage système (BSOD).
+                ${t("os.oc.warning")}
             </div>
         </div>
     `;
@@ -707,12 +717,12 @@ function triggerBsod(errorCode, desc) {
     monitor.innerHTML = `
         <div class="os-bsod">
             <div class="os-bsod-sad">:(</div>
-            <div class="os-bsod-title">Votre PC virtuel a rencontré un problème et doit redémarrer. Nous collectons simplement quelques informations relatives aux erreurs.</div>
+            <div class="os-bsod-title">${t("os.bsod.title")}</div>
             
             <div class="os-bsod-details">
-                Code d'arrêt système : <strong style="color:#ffef56">${errorCode}</strong><br>
-                Rapport technique : ${desc}<br><br>
-                <span style="font-size:0.8rem; opacity:0.8">Cliquez n'importe où pour forcer l'extinction et retourner à l'établi.</span>
+                ${t("os.bsod.text")} <strong style="color:#ffef56">${errorCode}</strong><br>
+                Technical report: ${desc}<br><br>
+                <span style="font-size:0.8rem; opacity:0.8">${t("os.bsod.sub")}</span>
             </div>
         </div>
     `;

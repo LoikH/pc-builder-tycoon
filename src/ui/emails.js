@@ -5,6 +5,7 @@
 import { state, saveGame, addMoney, addXp, updateActiveJobsRequirements } from "../state.js";
 import { getComponentById } from "../components.js";
 import { showToast } from "../main.js";
+import { t, getReqDesc } from "../translations.js";
 
 let selectedJobId = null;
 
@@ -20,7 +21,7 @@ export function renderEmailsTab() {
     emailListPanel.className = "glass-panel";
     emailListPanel.innerHTML = `
         <div class="panel-header">
-            <h2>Boîte de Réception</h2>
+            <h2>${t("emails.inbox")}</h2>
             <span class="nav-badge" style="position:static" id="email-count">${state.activeJobs.length}</span>
         </div>
         <div class="email-list" id="email-list-items"></div>
@@ -34,7 +35,7 @@ export function renderEmailsTab() {
     emailViewPanel.innerHTML = `
         <div class="email-view-empty">
             <span style="font-size: 3rem">✉️</span>
-            <p>Sélectionnez un e-mail pour lire les détails du projet.</p>
+            <p>${t("emails.empty")}</p>
         </div>
     `;
     container.appendChild(emailViewPanel);
@@ -49,7 +50,7 @@ function populateEmailList() {
     listContainer.innerHTML = "";
 
     if (state.activeJobs.length === 0) {
-        listContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-muted)">Aucun message.</div>`;
+        listContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-muted)">${state.language === "en" ? "No messages." : "Aucun message."}</div>`;
         return;
     }
 
@@ -58,37 +59,40 @@ function populateEmailList() {
         item.className = `email-item ${job.status === "available" ? "unread" : ""} ${selectedJobId === job.id ? "selected" : ""}`;
         
         let badgeColor = "var(--color-cyan)";
-        let badgeText = "Nouveau";
+        let badgeText = state.language === "en" ? "New" : "Nouveau";
         
         if (job.status === "active") {
             badgeColor = "var(--color-purple)";
-            badgeText = "En Cours";
+            badgeText = state.language === "en" ? "In Progress" : "En Cours";
         } else if (job.status === "ready") {
             badgeColor = "var(--color-emerald)";
-            badgeText = "Prêt";
+            badgeText = state.language === "en" ? "Ready" : "Prêt";
         } else if (job.status === "on_hold") {
             badgeColor = "var(--color-amber)";
-            badgeText = "En Attente";
+            badgeText = state.language === "en" ? "On Hold" : "En Attente";
         }
 
         if (job.isUrgent) {
             item.style.borderLeft = "4px solid var(--color-crimson)";
             if (job.status === "available") {
                 badgeColor = "var(--color-crimson)";
-                badgeText = "🚨 Urgent 24h";
+                badgeText = state.language === "en" ? "🚨 24h Urgent" : "🚨 Urgent 24h";
                 item.style.background = "rgba(255, 0, 85, 0.03)";
             } else {
                 badgeText = "🚨 " + badgeText;
             }
         }
 
+        const jobSubject = job.subjectKey ? t(job.subjectKey, job.textVars) : job.subject;
+        const jobText = job.textKey ? t(job.textKey, job.textVars) : job.text;
+
         item.innerHTML = `
             <div class="email-sender">
                 <span>${job.clientName}</span>
                 <span class="status-badge" style="background:${badgeColor}20; color:${badgeColor}; font-size:0.6rem; padding:1px 4px">${badgeText}</span>
             </div>
-            <div class="email-subject">${job.subject}</div>
-            <div class="email-snippet">${job.text.substring(0, 45)}...</div>
+            <div class="email-subject">${jobSubject}</div>
+            <div class="email-snippet">${jobText.substring(0, 45)}...</div>
         `;
 
         item.addEventListener("click", () => {
@@ -118,39 +122,42 @@ function renderEmailDetails(job) {
         });
     }
 
+    const jobSubject = job.subjectKey ? t(job.subjectKey, job.textVars) : job.subject;
+    const jobText = job.textKey ? t(job.textKey, job.textVars) : job.text;
+
     panel.innerHTML = `
         <div class="email-details">
             <div class="email-details-header">
-                <div class="email-details-title">${job.subject}</div>
+                <div class="email-details-title">${jobSubject}</div>
                 <div class="email-meta">
-                    <span>De : <strong>${job.clientName}</strong></span>
-                    <span>Budget pièces : <strong class="text-emerald">${job.budget}$</strong></span>
+                    <span>${t("emails.from")} <strong>${job.clientName}</strong></span>
+                    <span>${t("emails.partBudget")} <strong class="text-emerald">${job.budget}$</strong></span>
                 </div>
             </div>
-            <div class="email-body">${job.text}</div>
+            <div class="email-body">${jobText}</div>
             
             <div class="job-box">
-                <div class="job-box-title">Objectifs du projet</div>
+                <div class="job-box-title">${t("emails.objectives")}</div>
                 <ul class="job-reqs">
                     ${job.requirements.map(req => `
                         <li class="${req.done ? 'done text-emerald' : 'pending text-muted'}">
-                            ${req.desc}
+                            ${getReqDesc(req)}
                         </li>
                     `).join('')}
                 </ul>
 
                 <div class="job-financials">
                     <div>
-                        <div class="stat-label" style="font-size:0.6rem">Récompense</div>
+                        <div class="stat-label" style="font-size:0.6rem">${t("emails.reward")}</div>
                         <div class="text-emerald font-mono" style="font-size:1.1rem; font-weight:700">${job.reward.toFixed(2)}$</div>
                     </div>
                     <div>
-                        <div class="stat-label" style="font-size:0.6rem">Expérience</div>
+                        <div class="stat-label" style="font-size:0.6rem">${t("emails.experience")}</div>
                         <div class="text-cyan font-mono" style="font-size:1.1rem; font-weight:700">+${job.xpReward} XP</div>
                     </div>
                     ${job.type === "build" ? `
                     <div>
-                        <div class="stat-label" style="font-size:0.6rem">Dépenses Pièces</div>
+                        <div class="stat-label" style="font-size:0.6rem">${t("emails.partsCost")}</div>
                         <div class="${partsSpent <= job.budget ? 'text-emerald' : 'text-crimson'} font-mono" style="font-size:1.1rem; font-weight:700">${partsSpent}$ / ${job.budget}$</div>
                     </div>
                     ` : ''}
@@ -167,22 +174,25 @@ function renderEmailDetails(job) {
         actionsArea.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px; width:100%">
                 <p style="font-size:0.8rem; color:var(--text-secondary)">
-                    ${job.status === "on_hold" ? "Ré-attribuer et reprendre ce projet sur un établi libre :" : "Attribuer ce projet à un établi libre :"}
+                    ${job.status === "on_hold" ? t("emails.reassignWorkbench") : t("emails.assignWorkbench")}
                 </p>
                 <div style="display:flex; gap:10px">
                     ${state.workbenches.map(wb => {
                         if (!wb.unlocked) return "";
                         const isBusy = wb.pc !== null;
+                        const busyLabel = state.language === "en" ? "(Busy)" : "(Occupé)";
+                        const freeLabel = state.language === "en" ? "(Free)" : "(Libre)";
+                        const wbLabel = state.language === "en" ? "Workbench" : "Établi";
                         return `
                             <button class="btn-secondary" style="flex:1" ${isBusy ? "disabled" : ""} id="btn-assign-wb-${wb.id}">
-                                Établi ${wb.id} ${isBusy ? "(Occupé)" : "(Libre)"}
+                                ${wbLabel} ${wb.id} ${isBusy ? busyLabel : freeLabel}
                             </button>
                         `;
                     }).join('')}
                 </div>
                 ${job.status === "available" ? `
                 <button class="btn-secondary text-crimson" style="margin-top:5px; border-color:rgba(255,0,85,0.2)" id="btn-reject-job">
-                    Refuser la mission
+                    ${t("emails.rejectJob")}
                 </button>
                 ` : ''}
             </div>
@@ -206,10 +216,10 @@ function renderEmailDetails(job) {
         actionsArea.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px; width:100%">
                 <p style="font-size:0.85rem; color:var(--text-amber)">
-                    Le PC est en cours de montage sur l'Établi. Remplissez tous les objectifs à l'établi pour facturer le client.
+                    ${t("emails.activeText")}
                 </p>
                 <button class="btn-secondary text-amber" style="border-color:rgba(255,170,0,0.25); width:100%" id="btn-put-hold-job">
-                    Ranger le PC et mettre la mission en attente (Libérer l'établi)
+                    ${t("emails.putHold")}
                 </button>
             </div>
         `;
@@ -221,7 +231,7 @@ function renderEmailDetails(job) {
     } else if (job.status === "ready") {
         actionsArea.innerHTML = `
             <button class="btn-primary glow-btn" id="btn-complete-job" style="width:100%">
-                Livrer le PC et encaisser la facture (${job.reward.toFixed(2)}$)
+                ${state.language === "en" ? "Deliver PC and claim invoice" : "Livrer le PC et encaisser la facture"} (${job.reward.toFixed(2)}$)
             </button>
         `;
         document.getElementById("btn-complete-job").addEventListener("click", () => {
@@ -239,7 +249,14 @@ function acceptJob(job, workbenchId) {
         wb.pc.orderId = job.id; // link back to job
         
         saveGame();
-        showToast(job.status === "on_hold" ? `PC d'occasion repris sur l'Établi ${workbenchId} !` : `Projet accepté et PC placé sur l'Établi ${workbenchId} !`, "success");
+        
+        let tMsg = "";
+        if (state.language === "en") {
+            tMsg = job.status === "on_hold" ? `Used PC resumed on Workbench ${workbenchId}!` : `Project accepted and PC placed on Workbench ${workbenchId}!`;
+        } else {
+            tMsg = job.status === "on_hold" ? `PC d'occasion repris sur l'Établi ${workbenchId} !` : `Projet accepté et PC placé sur l'Établi ${workbenchId} !`;
+        }
+        showToast(tMsg, "success");
         
         // Refresh UI
         renderEmailsTab();
@@ -251,7 +268,7 @@ function rejectJob(job) {
     state.activeJobs = state.activeJobs.filter(j => j.id !== job.id);
     selectedJobId = null;
     saveGame();
-    showToast("Mission déclinée.", "info");
+    showToast(state.language === "en" ? "Mission declined." : "Mission déclinée.", "info");
     renderEmailsTab();
 }
 
@@ -268,7 +285,9 @@ function putJobOnHold(job) {
     
     job.status = "on_hold";
     saveGame();
-    showToast(`Mission "${job.subject}" mise en attente. Le PC a été rangé en réserve.`, "info");
+    
+    const jobSubject = job.subjectKey ? t(job.subjectKey, job.textVars) : job.subject;
+    showToast(state.language === "en" ? `Mission "${jobSubject}" put on hold.` : `Mission "${jobSubject}" mise en attente. Le PC a été rangé en réserve.`, "info");
     
     renderEmailsTab();
 }
@@ -298,9 +317,9 @@ function completeJob(job) {
     saveGame();
     
     if (levelResult.levelUp) {
-        showToast(`NIVEAU SUPÉRIEUR ! Vous êtes maintenant niveau ${levelResult.currentLevel} ! De nouvelles pièces sont disponibles en boutique !`, "success");
+        showToast(state.language === "en" ? `LEVEL UP! You are now level ${levelResult.currentLevel}! New parts are available in the shop!` : `NIVEAU SUPÉRIEUR ! Vous êtes maintenant niveau ${levelResult.currentLevel} ! De nouvelles pièces sont disponibles en boutique !`, "success");
     } else {
-        showToast(`Mission terminée ! +${job.reward}$ et +${job.xpReward} XP`, "success");
+        showToast(state.language === "en" ? `Mission completed! +${job.reward}$ and +${job.xpReward} XP` : `Mission terminée ! +${job.reward}$ et +${job.xpReward} XP`, "success");
     }
 
     // Refresh HUD

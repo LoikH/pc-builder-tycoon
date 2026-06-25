@@ -76,12 +76,16 @@ export function generateNewJobs(playerLevel, count = 1) {
         let xpReward = 0;
         let pc = null;
         let requirements = [];
+        let subjectKey = null;
+        let textKey = null;
+        let textVars = null;
 
         // Build base PC templates for clients
         const clientPc = createBaseClientPc(type, playerLevel);
 
         if (type === "virus") {
-            subject = randArr(VIRUS_SUBJECTS);
+            const subjectIdx = Math.floor(Math.random() * VIRUS_SUBJECTS.length);
+            subject = VIRUS_SUBJECTS[subjectIdx];
             text = `Bonjour,\n\nDepuis quelques jours, mon ordinateur est d'une lenteur exaspérante. Des fenêtres pop-up s'ouvrent sans arrêt avec des publicités bizarres, et je crains que des virus n'aient infecté mes fichiers.\n\nPouvez-vous nettoyer le système d'exploitation et vous assurer qu'il n'y a plus aucune menace ?\n\nMerci,\n${clientName}`;
             budget = 0; // No hardware needed
             reward = 120 + playerLevel * 20;
@@ -94,6 +98,10 @@ export function generateNewJobs(playerLevel, count = 1) {
                 { id: "boot_os", desc: "S'assurer que le PC démarre sous l'OS", done: false }
             ];
             pc = clientPc;
+
+            subjectKey = `jobs.virus.subject_${subjectIdx}`;
+            textKey = "jobs.virus.text";
+            textVars = { clientName };
         } 
         else if (type === "upgrade") {
             const upgradeType = Math.random() > 0.5 ? "ram" : "storage";
@@ -101,7 +109,8 @@ export function generateNewJobs(playerLevel, count = 1) {
             if (upgradeType === "ram") {
                 // Customer wants 16GB or 32GB RAM
                 const targetGb = clientPc.ram && getComponentById(clientPc.ram.partId).specs.capacity.includes("8") ? 16 : 32;
-                subject = randArr(UPGRADE_RAM_SUBJECTS).replace("{targetGb}", targetGb);
+                const subjectIdx = Math.floor(Math.random() * UPGRADE_RAM_SUBJECTS.length);
+                subject = UPGRADE_RAM_SUBJECTS[subjectIdx].replace("{targetGb}", targetGb);
                 text = `Salut,\n\nJe joue beaucoup en ce moment, mais mon PC a du mal lorsque j'ouvre d'autres applications en arrière-plan. Je pense que je manque de mémoire vive.\n\nPourriez-vous mettre à niveau ma RAM pour atteindre au moins ${targetGb} Go ?\n\nCordialement,\n${clientName}`;
                 budget = targetGb === 16 ? 80 : 160;
                 reward = 150 + playerLevel * 15;
@@ -111,9 +120,14 @@ export function generateNewJobs(playerLevel, count = 1) {
                     { id: "ram_capacity", desc: `Avoir au moins ${targetGb} Go de RAM`, target: targetGb, done: false },
                     { id: "boot_os", desc: "Vérifier que le PC démarre sous l'OS", done: false }
                 ];
+
+                subjectKey = `jobs.upgrade.ram.subject_${subjectIdx}`;
+                textKey = "jobs.upgrade.ram.text";
+                textVars = { clientName, targetGb };
             } else {
                 // Customer wants SSD upgrade or more storage
-                subject = randArr(UPGRADE_STORAGE_SUBJECTS);
+                const subjectIdx = Math.floor(Math.random() * UPGRADE_STORAGE_SUBJECTS.length);
+                subject = UPGRADE_STORAGE_SUBJECTS[subjectIdx];
                 text = `Bonjour,\n\nMon disque dur actuel est plein et très lent. Je voudrais installer un SSD M.2 NVMe rapide d'au moins 1 To pour stocker mes projets professionnels et mes jeux.\n\nMerci d'avance,\n${clientName}`;
                 budget = 120;
                 reward = 140 + playerLevel * 15;
@@ -127,11 +141,16 @@ export function generateNewJobs(playerLevel, count = 1) {
                     { id: "fast_ssd", desc: "Installer un SSD M.2 NVMe d'au moins 1 To", done: false },
                     { id: "boot_os", desc: "Vérifier que le PC démarre sous l'OS", done: false }
                 ];
+
+                subjectKey = `jobs.upgrade.storage.subject_${subjectIdx}`;
+                textKey = "jobs.upgrade.storage.text";
+                textVars = { clientName };
             }
             pc = clientPc;
         } 
         else if (type === "repair") {
-            subject = randArr(REPAIR_SUBJECTS);
+            const subjectIdx = Math.floor(Math.random() * REPAIR_SUBJECTS.length);
+            subject = REPAIR_SUBJECTS[subjectIdx];
             const repairTarget = Math.random() > 0.5 ? "cpu" : "gpu";
             
             if (repairTarget === "cpu") {
@@ -148,9 +167,13 @@ export function generateNewJobs(playerLevel, count = 1) {
 
                 requirements = [
                     { id: "no_broken_parts", desc: "Aucun composant en panne dans le PC", done: false },
-                    { id: "cpu_tier", desc: `Installer un processeur équivalent ou supérieur (${originalCpu.name})`, target: originalCpu.specs.score, done: false },
+                    { id: "cpu_tier", desc: `Installer un processeur équivalent ou supérieur (${originalCpu.name})`, target: originalCpu.specs.score, targetName: originalCpu.name, done: false },
                     { id: "boot_os", desc: "Le PC doit démarrer correctement", done: false }
                 ];
+
+                subjectKey = `jobs.repair.subject_${subjectIdx}`;
+                textKey = "jobs.repair.cpu.text";
+                textVars = { clientName };
             } else {
                 text = `Bonjour,\n\nJe n'ai plus d'affichage sur mon écran et la carte graphique fait un bruit étrange au démarrage. Je pense qu'elle est en fin de vie.\n\nPourriez-vous remplacer ma carte graphique défectueuse ?\n\nBien à vous,\n${clientName}`;
                 
@@ -165,14 +188,19 @@ export function generateNewJobs(playerLevel, count = 1) {
 
                 requirements = [
                     { id: "no_broken_parts", desc: "Aucun composant en panne", done: false },
-                    { id: "gpu_tier", desc: `Installer une carte graphique équivalente ou supérieure (${originalGpu.name})`, target: originalGpu.specs.score, done: false },
+                    { id: "gpu_tier", desc: `Installer une carte graphique équivalente ou supérieure (${originalGpu.name})`, target: originalGpu.specs.score, targetName: originalGpu.name, done: false },
                     { id: "boot_os", desc: "Le PC doit démarrer correctement", done: false }
                 ];
+
+                subjectKey = `jobs.repair.subject_${subjectIdx}`;
+                textKey = "jobs.repair.gpu.text";
+                textVars = { clientName };
             }
             pc = clientPc;
         } 
         else if (type === "benchmark") {
-            subject = randArr(BENCHMARK_SUBJECTS);
+            const subjectIdx = Math.floor(Math.random() * BENCHMARK_SUBJECTS.length);
+            subject = BENCHMARK_SUBJECTS[subjectIdx];
             
             // Calculate a target score that is slightly challenging for their tier
             const currentScore = clientPc.score || 3000;
@@ -188,6 +216,10 @@ export function generateNewJobs(playerLevel, count = 1) {
                 { id: "benchmark_score", desc: `Atteindre un score de benchmark d'au moins ${targetScore}`, target: targetScore, done: false },
                 { id: "boot_os", desc: "Le PC doit démarrer sous l'OS", done: false }
             ];
+
+            subjectKey = `jobs.benchmark.subject_${subjectIdx}`;
+            textKey = "jobs.benchmark.text";
+            textVars = { clientName, targetScore };
             pc = clientPc;
         } 
         else if (type === "build") {
@@ -214,6 +246,10 @@ export function generateNewJobs(playerLevel, count = 1) {
                 hasOs: false, isClean: true, score: 0, diagnosed: false,
                 bootedOnce: false
             };
+
+            subjectKey = "jobs.build.subject";
+            textKey = "jobs.build.text";
+            textVars = { clientName, budget, targetScore };
         }
 
         // Targeted virus wave multiplier
@@ -239,7 +275,10 @@ export function generateNewJobs(playerLevel, count = 1) {
             xpReward: finalXpReward,
             pc,
             isUrgent,
-            expiryDay: isUrgent ? (state ? state.day : 1) : null
+            expiryDay: isUrgent ? (state ? state.day : 1) : null,
+            subjectKey,
+            textKey,
+            textVars
         });
     }
 

@@ -7,6 +7,7 @@ import { showToast } from "../main.js";
 import { getComponentById, getMotherboardSlots } from "../components.js";
 import { calculatePcBenchmark } from "../jobs.js";
 import { bootVirtualOs, closeVirtualOs } from "./virtualos.js";
+import { t, getReqDesc } from "../translations.js";
 
 let selectedSlotType = null;
 let currentOpenPc = null; // Reference to PC currently worked on
@@ -155,11 +156,12 @@ export function renderWorkbenchTab() {
     caseView.className = "workbench-case-view";
     
     if (!currentOpenPc) {
+        const titleLabel = state.language === "en" ? `Workbench ${state.selectedWorkbenchId} Empty` : `Établi ${state.selectedWorkbenchId} Vide`;
         caseView.innerHTML = `
             <div style="text-align:center; color:var(--text-muted)">
                 <span style="font-size:4rem">🔧</span>
-                <h3 style="margin-top:15px; color:#fff">Établi ${state.selectedWorkbenchId} Vide</h3>
-                <p style="font-size:0.85rem; margin-top:5px; max-width:300px">Sélectionnez une commande dans vos e-mails ou importez un ordinateur d'occasion pour commencer.</p>
+                <h3 style="margin-top:15px; color:#fff">${titleLabel}</h3>
+                <p style="font-size:0.85rem; margin-top:5px; max-width:300px">${t("workbench.emptySub")}</p>
                 <div style="margin-top:20px" id="workbench-import-area"></div>
             </div>
         `;
@@ -167,34 +169,44 @@ export function renderWorkbenchTab() {
     } else {
         const maxSlots = getMotherboardSlots(currentOpenPc.motherboard?.partId);
         
+        const caseLabel = t("workbench.part.case");
+        const mbLabel = t("workbench.part.motherboard");
+        const cpuLabel = t("workbench.part.cpu");
+        const coolerLabel = t("workbench.part.cooler");
+        const gpuLabel = t("workbench.part.gpu");
+        const psuLabel = t("workbench.part.psu");
+
+        const noCaseLabel = state.language === "en" ? "No Case (Open Test Bench)" : "Aucun Boîtier (Composants à nu)";
+        const emptySlotLabel = state.language === "en" ? "Empty Slot" : "Emplacement Vide";
+
         // Render slots
         caseView.innerHTML = `
             <div class="case-schematic">
                 <!-- Case Slot -->
                 <div class="case-slot ${currentOpenPc.case ? 'filled' : ''}" id="slot-case" data-slot="case" style="top: 15px; left: 40px; width: 420px; height: 45px; z-index: 5;">
-                    <span class="case-slot-label">Boîtier PC</span>
-                    <span class="case-slot-partname">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : 'Aucun Boîtier (Composants à nu)'}</span>
+                    <span class="case-slot-label">${caseLabel}</span>
+                    <span class="case-slot-partname">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : noCaseLabel}</span>
                 </div>
 
                 <!-- Motherboard Slot -->
                 <div class="case-slot ${currentOpenPc.motherboard ? 'filled' : ''}" id="slot-motherboard" data-slot="motherboard">
-                    <span class="case-slot-label">Carte Mère</span>
-                    <span class="case-slot-partname">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-label">${mbLabel}</span>
+                    <span class="case-slot-partname">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : emptySlotLabel}</span>
                 </div>
                 
                 <!-- CPU Slot (Nested visually in motherboard area, stacked, non-overlapping) -->
                 ${currentOpenPc.motherboard ? `
                 <div class="case-slot ${currentOpenPc.cpu ? 'filled' : ''}" id="slot-cpu" data-slot="cpu" style="top: 80px; left: 145px; width: 110px; height: 70px; z-index: 10;">
-                    <span class="case-slot-label">CPU</span>
-                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-label">${cpuLabel}</span>
+                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : emptySlotLabel}</span>
                 </div>
                 ` : ''}
 
                 <!-- CPU Cooler Slot (Stacked vertically below CPU, non-overlapping) -->
                 ${currentOpenPc.cpu ? `
                 <div class="case-slot ${currentOpenPc.cooler ? 'filled' : ''}" id="slot-cooler" data-slot="cooler" style="top: 155px; left: 145px; width: 110px; height: 70px; z-index: 10;">
-                    <span class="case-slot-label">Refroidisseur</span>
-                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-label">${coolerLabel}</span>
+                    <span class="case-slot-partname" style="font-size: 0.7rem; line-height: 1.2;">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : emptySlotLabel}</span>
                 </div>
                 ` : ''}
 
@@ -210,15 +222,15 @@ export function renderWorkbenchTab() {
                 <!-- GPU Slot (PCIe slot) -->
                 ${currentOpenPc.motherboard ? `
                 <div class="case-slot ${currentOpenPc.gpu ? 'filled' : ''}" id="slot-gpu" data-slot="gpu" style="top: 235px; left: 115px; width: 250px; height: 75px; z-index: 12;">
-                    <span class="case-slot-label">Carte Graphique</span>
-                    <span class="case-slot-partname">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-label">${gpuLabel}</span>
+                    <span class="case-slot-partname">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : emptySlotLabel}</span>
                 </div>
                 ` : ''}
 
                 <!-- Power Supply Slot -->
                 <div class="case-slot ${currentOpenPc.psu ? 'filled' : ''}" id="slot-psu" data-slot="psu">
-                    <span class="case-slot-label">Alimentation (PSU)</span>
-                    <span class="case-slot-partname">${currentOpenPc.psu ? getComponentById(currentOpenPc.psu.partId).name : 'Emplacement Vide'}</span>
+                    <span class="case-slot-label">${psuLabel}</span>
+                    <span class="case-slot-partname">${currentOpenPc.psu ? getComponentById(currentOpenPc.psu.partId).name : emptySlotLabel}</span>
                 </div>
 
                 <!-- Multi-slot Storage: NVMe on Motherboard -->
@@ -261,11 +273,11 @@ export function renderWorkbenchTab() {
     let selectorHtml = "";
     state.workbenches.forEach(wb => {
         if (!wb.unlocked) {
-            selectorHtml += `<div class="pc-tab text-muted" style="opacity:0.5; cursor:not-allowed">🔒 Établi ${wb.id}</div>`;
+            selectorHtml += `<div class="pc-tab text-muted" style="opacity:0.5; cursor:not-allowed">🔒 ${state.language === "en" ? 'Workbench' : 'Établi'} ${wb.id}</div>`;
         } else {
             selectorHtml += `
                 <div class="pc-tab ${state.selectedWorkbenchId === wb.id ? 'active' : ''}" id="tab-wb-${wb.id}">
-                    Établi ${wb.id} ${wb.pc ? '🛠️' : ''}
+                    ${state.language === "en" ? 'Workbench' : 'Établi'} ${wb.id} ${wb.pc ? '🛠️' : ''}
                 </div>
             `;
         }
@@ -273,7 +285,7 @@ export function renderWorkbenchTab() {
 
     rightSidebar.innerHTML = `
         <div class="glass-panel workbench-details-card">
-            <div class="stat-label" style="margin-bottom:8px">Choisir mon établi</div>
+            <div class="stat-label" style="margin-bottom:8px">${t("workbench.choosetab")}</div>
             <div class="pc-selector-row">${selectorHtml}</div>
         </div>
     `;
@@ -289,18 +301,22 @@ export function renderWorkbenchTab() {
             objectiveCard.style.boxShadow = "inset 0 0 10px rgba(0, 240, 255, 0.05)";
             objectiveCard.style.marginBottom = "8px";
             
+            const objTitle = state.language === "en" ? "🎯 Project Objectives" : "🎯 Objectifs de la Mission";
+
+            const jobSubject = linkedJob.subjectKey ? t(linkedJob.subjectKey, linkedJob.textVars) : linkedJob.subject;
+
             objectiveCard.innerHTML = `
                 <div style="font-weight: 700; font-size: 0.85rem; color: var(--color-cyan); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; margin-bottom: 8px;">
-                    🎯 Objectifs de la Mission
+                    ${objTitle}
                 </div>
-                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${linkedJob.subject}">
-                    ${linkedJob.subject}
+                <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${jobSubject}">
+                    ${jobSubject}
                 </div>
                 <ul class="job-reqs" style="display: flex; flex-direction: column; gap: 5px; list-style: none; padding: 0;">
                     ${linkedJob.requirements.map(req => `
                         <li class="${req.done ? 'done text-emerald' : 'pending text-muted'}" style="font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
                             <span style="font-size: 0.9rem;">${req.done ? '✅' : '○'}</span>
-                            <span style="${req.done ? 'text-decoration: line-through; opacity: 0.85;' : ''}">${req.desc}</span>
+                            <span style="${req.done ? 'text-decoration: line-through; opacity: 0.85;' : ''}">${getReqDesc(req)}</span>
                         </li>
                     `).join('')}
                 </ul>
@@ -320,7 +336,7 @@ export function renderWorkbenchTab() {
 
         const isPowerSuff = wattageProvided >= wattageRequired;
 
-        let ramSpecText = 'Manquante';
+        let ramSpecText = t("workbench.status.missingF");
         if (currentOpenPc.rams && currentOpenPc.rams.some(r => r)) {
             const activeRams = currentOpenPc.rams.filter(r => r);
             let totalCap = 0;
@@ -337,17 +353,19 @@ export function renderWorkbenchTab() {
                     type = comp.specs.ramType;
                 }
             });
-            ramSpecText = `${totalCap} Go ${type} (${activeRams.length}/${currentOpenPc.rams.length} Slots)`;
+            const slotsLabel = state.language === "en" ? "Slots" : "Slots";
+            ramSpecText = `${totalCap} Go ${type} (${activeRams.length}/${currentOpenPc.rams.length} ${slotsLabel})`;
         }
 
-        let storageSpecText = 'Manquant';
+        let storageSpecText = t("workbench.status.missing");
         if (currentOpenPc.storages && currentOpenPc.storages.some(s => s)) {
             const activeStorages = currentOpenPc.storages.filter(s => s);
             const nvmeCount = activeStorages.filter(s => getComponentById(s.partId).specs.storageType === "NVMe M.2").length;
             const sataCount = activeStorages.length - nvmeCount;
             let nvmeLabel = nvmeCount > 0 ? `${nvmeCount}x NVMe` : '';
             let sataLabel = sataCount > 0 ? `${sataCount}x SATA` : '';
-            storageSpecText = [nvmeLabel, sataLabel].filter(Boolean).join(', ') + ` (${activeStorages.length}/${currentOpenPc.storages.length} Disques)`;
+            const disksLabel = state.language === "en" ? "Drives" : "Disques";
+            storageSpecText = [nvmeLabel, sataLabel].filter(Boolean).join(', ') + ` (${activeStorages.length}/${currentOpenPc.storages.length} ${disksLabel})`;
         }
 
         // Calculate total build cost (cost of all installed parts)
@@ -381,76 +399,80 @@ export function renderWorkbenchTab() {
             });
         }
 
+        const missingText = t("workbench.status.missing");
+        const missingTextF = t("workbench.status.missingF");
+        const activeStatusLabel = window.isPcRunning ? t("workbench.status.on") : t("workbench.status.off");
+
         specCard.innerHTML = `
             <div style="font-weight:700; font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:8px; display:flex; justify-content:space-between">
-                <span>Configuration Actuelle</span>
-                <span class="status-badge ${window.isPcRunning ? 'on' : 'off'}">${window.isPcRunning ? 'En marche' : 'Éteint'}</span>
+                <span>${t("workbench.currentConfig")}</span>
+                <span class="status-badge ${window.isPcRunning ? 'on' : 'off'}">${activeStatusLabel}</span>
             </div>
 
             <div class="pc-specs-list">
-                <div class="pc-spec-row"><span class="pc-spec-name">Boîtier</span><span class="pc-spec-val">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : 'Manquant'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Carte Mère</span><span class="pc-spec-val">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : 'Manquante'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Processeur</span><span class="pc-spec-val">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : 'Manquant'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Ventirad</span><span class="pc-spec-val">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : 'Manquant'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Mémoire RAM</span><span class="pc-spec-val" title="${currentOpenPc.rams ? currentOpenPc.rams.filter(r => r).map(r => getComponentById(r.partId).name).join(', ') : ''}">${ramSpecText}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Graphismes</span><span class="pc-spec-val">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : 'Manquants'}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Stockage</span><span class="pc-spec-val" title="${currentOpenPc.storages ? currentOpenPc.storages.filter(s => s).map(s => getComponentById(s.partId).name).join(', ') : ''}">${storageSpecText}</span></div>
-                <div class="pc-spec-row"><span class="pc-spec-name">Alimentation</span><span class="pc-spec-val">${currentOpenPc.psu ? `${getComponentById(currentOpenPc.psu.partId).name} (${wattageProvided}W)` : 'Manquante'}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.case")}</span><span class="pc-spec-val">${currentOpenPc.case ? getComponentById(currentOpenPc.case.partId).name : missingText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.motherboard")}</span><span class="pc-spec-val">${currentOpenPc.motherboard ? getComponentById(currentOpenPc.motherboard.partId).name : missingTextF}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.cpu")}</span><span class="pc-spec-val">${currentOpenPc.cpu ? getComponentById(currentOpenPc.cpu.partId).name : missingText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.cooler")}</span><span class="pc-spec-val">${currentOpenPc.cooler ? getComponentById(currentOpenPc.cooler.partId).name : missingText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.ram")}</span><span class="pc-spec-val" title="${currentOpenPc.rams ? currentOpenPc.rams.filter(r => r).map(r => getComponentById(r.partId).name).join(', ') : ''}">${ramSpecText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.gpu")}</span><span class="pc-spec-val">${currentOpenPc.gpu ? getComponentById(currentOpenPc.gpu.partId).name : missingText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.storage")}</span><span class="pc-spec-val" title="${currentOpenPc.storages ? currentOpenPc.storages.filter(s => s).map(s => getComponentById(s.partId).name).join(', ') : ''}">${storageSpecText}</span></div>
+                <div class="pc-spec-row"><span class="pc-spec-name">${t("workbench.part.psu")}</span><span class="pc-spec-val">${currentOpenPc.psu ? `${getComponentById(currentOpenPc.psu.partId).name} (${wattageProvided}W)` : missingTextF}</span></div>
             </div>
 
             <div style="margin-top:15px; font-size:0.8rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px">
                 <div style="display:flex; justify-content:space-between">
-                    <span>Consommation estimée :</span>
+                    <span>${t("workbench.specs.wattage")}</span>
                     <span class="${isPowerSuff ? 'text-emerald' : 'text-crimson'}" style="font-weight:600">${wattageRequired}W / ${wattageProvided}W</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:4px">
-                    <span>Pâte thermique :</span>
-                    <span class="${currentOpenPc.thermalPasteApplied ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.thermalPasteApplied ? (currentOpenPc.thermalPasteType === 'liquid_metal' ? 'Métal Liquide ✓' : 'Standard ✓') : 'Manquante ✗'}</span>
+                    <span>${t("workbench.specs.paste")}</span>
+                    <span class="${currentOpenPc.thermalPasteApplied ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.thermalPasteApplied ? (currentOpenPc.thermalPasteType === 'liquid_metal' ? t("workbench.specs.paste.liquid_metal") : t("workbench.specs.paste.standard")) : t("workbench.specs.paste.missing")}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:4px">
-                    <span>Câbles d'alimentation :</span>
-                    <span class="${currentOpenPc.cablesConnected ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.cablesConnected ? 'Branchés ✓' : 'Débranchés ✗'}</span>
+                    <span>${t("workbench.specs.cables")}</span>
+                    <span class="${currentOpenPc.cablesConnected ? 'text-emerald' : 'text-crimson'}">${currentOpenPc.cablesConnected ? t("workbench.specs.cables.on") : t("workbench.specs.cables.off")}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-top:4px; font-weight: 600; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px; margin-top: 8px;">
-                    <span class="text-cyan">Coût total des pièces :</span>
+                    <span class="text-cyan">${t("workbench.specs.cost")}</span>
                     <span class="text-emerald font-mono">${totalBuildCost.toFixed(2)}$</span>
                 </div>
             </div>
 
             <div class="workbench-actions-box">
                 <button class="btn-secondary" id="btn-toggle-paste" style="width:100%">
-                    ${currentOpenPc.thermalPasteApplied ? 'Nettoyer la pâte thermique' : 'Appliquer pâte thermique'}
+                    ${currentOpenPc.thermalPasteApplied ? (state.language === "en" ? "Clean thermal paste" : "Nettoyer la pâte thermique") : (state.language === "en" ? "Apply thermal paste" : "Appliquer la pâte thermique")}
                 </button>
                 <button class="btn-secondary" id="btn-toggle-cables" style="width:100%">
-                    ${currentOpenPc.cablesConnected ? 'Débrancher les câbles' : 'Brancher les câbles'}
+                    ${currentOpenPc.cablesConnected ? (state.language === "en" ? "Disconnect power cables" : "Débrancher les câbles") : (state.language === "en" ? "Connect power cables" : "Brancher les câbles")}
                 </button>
                 
                 ${window.isPcRunning ? `
                     <button class="btn-primary glow-btn" id="btn-power-pc" style="width:100%; background:linear-gradient(135deg, var(--color-crimson), #c00); box-shadow: 0 4px 15px rgba(255,0,85,0.2)">
-                        Éteindre le PC (Power OFF)
+                        ${state.language === "en" ? "Turn OFF (Power OFF)" : "Éteindre le PC (Power OFF)"}
                     </button>
                 ` : `
                     <button class="btn-primary glow-btn" id="btn-power-pc" style="width:100%; background:linear-gradient(135deg, var(--color-emerald), #080); box-shadow: 0 4px 15px rgba(0,255,136,0.2)">
-                        Allumer le PC (Power ON)
+                        ${state.language === "en" ? "Turn ON (Power ON)" : "Allumer le PC (Power ON)"}
                     </button>
                 `}
 
                 ${linkedJob ? `
                     <button class="btn-secondary text-amber" id="btn-put-hold-workbench" style="width:100%; border-color:rgba(255,170,0,0.25); margin-top:5px; font-weight: 500;">
-                        📦 Ranger le PC (Mettre en attente)
+                        ${t("workbench.btn.putHold")}
                     </button>
                 ` : ''}
 
                 ${!linkedJob ? `
                     <div style="border-top:1px solid var(--border-color); margin-top:10px; padding-top:10px; display:flex; flex-direction:column; gap:5px">
-                        <div class="stat-label">PC Libre (Flip BargainBin)</div>
-                        <input type="text" id="flip-build-name" placeholder="Nom de l'ordinateur" value="${activeWb.pc.name || 'PC Gamer Flip'}" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.8rem">
-                        <input type="number" id="flip-build-price" placeholder="Prix de vente ($)" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.8rem">
+                        <div class="stat-label">${t("workbench.flip.title")}</div>
+                        <input type="text" id="flip-build-name" placeholder="${t("workbench.flip.name")}" value="${activeWb.pc.name || 'PC Gamer Flip'}" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.8rem">
+                        <input type="number" id="flip-build-price" placeholder="${t("workbench.flip.price")}" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.8rem">
                         <button class="btn-secondary text-purple" style="border-color:rgba(189,0,255,0.3)" id="btn-sell-flip-pc">
-                            Mettre en vente sur BargainBin
+                            ${t("workbench.btn.sell")}
                         </button>
                         <button class="btn-secondary text-crimson" style="border-color:rgba(255,0,85,0.2); font-size:0.75rem; margin-top:5px" id="btn-scrap-pc">
-                            Démonter le PC (Récupérer les pièces)
+                            ${t("workbench.btn.scrap")}
                         </button>
                     </div>
                 ` : ''}
@@ -559,18 +581,18 @@ function populateImportArea() {
     if (flips.length > 0) {
         importHtml = `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px">
-                <span class="stat-label">Importer un PC d'occasion</span>
+                <span class="stat-label">${t("workbench.import.title")}</span>
                 <select id="select-import-pc" style="background:#111; color:#fff; border:1px solid var(--border-color); font-size:0.8rem; padding:6px; border-radius:6px">
                     ${flips.map(f => `<option value="${f.id}">${f.name} (${f.pricePaid}$)</option>`).join('')}
                 </select>
                 <button class="btn-primary glow-btn" id="btn-import-pc-action">
-                    Placer sur l'Établi
+                    ${t("workbench.import.action")}
                 </button>
             </div>
         `;
     } else {
         importHtml = `
-            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px">Aucun PC d'occasion en stock.</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px">${t("workbench.import.empty")}</div>
         `;
     }
 
@@ -578,7 +600,7 @@ function populateImportArea() {
         <div style="display:flex; flex-direction:column; gap:8px">
             ${importHtml}
             <button class="btn-primary glow-btn" id="btn-create-scratch-build" style="background:linear-gradient(135deg, var(--color-purple), #90f); width:100%">
-                Commencer un montage de zéro
+                ${t("workbench.import.scratch")}
             </button>
         </div>
     `;
@@ -597,7 +619,7 @@ function populateImportArea() {
                 // Remove from inventory
                 state.inventory = state.inventory.filter(i => i.id !== id);
                 saveGame();
-                showToast("PC d'occasion importé sur l'établi !", "success");
+                showToast(t("toast.pcImported"), "success");
                 renderWorkbenchTab();
             }
         });
@@ -612,7 +634,7 @@ function populateImportArea() {
             hasOs: false, isClean: true, score: 0, diagnosed: true
         };
         saveGame();
-        showToast("Boîtier vide placé sur l'établi !", "info");
+        showToast(t("toast.casePlaced"), "info");
         renderWorkbenchTab();
     });
 }
@@ -727,7 +749,7 @@ function openPartInstallerDrawer(slotType, slotIndex = null) {
     header.className = "panel-header";
     const slotLabel = (slotIndex !== null) ? `${slotType.toUpperCase()} (Slot ${slotIndex + 1})` : slotType.toUpperCase();
     header.innerHTML = `
-        <h2>Sélectionner un composant : ${slotLabel}</h2>
+        <h2>${t("drawer.title")} ${slotLabel}</h2>
         <button class="os-window-close" id="btn-close-drawer">×</button>
     `;
     
@@ -744,34 +766,36 @@ function openPartInstallerDrawer(slotType, slotIndex = null) {
     let listHtml = "";
 
     if (existingPart) {
+        const existCondLabel = existingPart.condition === "new" ? t("inventory.cond.new") : existingPart.condition === "used" ? t("inventory.cond.used") : t("inventory.cond.broken");
         listHtml += `
             <div style="background:rgba(255,0,85,0.05); padding:1rem; border-radius:6px; border:1px solid rgba(255,0,85,0.2); margin-bottom:1.5rem; display:flex; justify-content:space-between; align-items:center">
                 <div>
-                    <span class="stat-label">Composant installé</span>
-                    <div style="font-weight:600; font-size:0.9rem">${getComponentById(existingPart.partId).name} (${existingPart.condition === 'used' ? 'Occasion' : existingPart.condition === 'broken' ? 'En Panne' : 'Neuf'})</div>
+                    <span class="stat-label">${t("drawer.installed")}</span>
+                    <div style="font-weight:600; font-size:0.9rem">${getComponentById(existingPart.partId).name} (${existCondLabel})</div>
                 </div>
                 <button class="btn-secondary text-crimson" id="btn-uninstall-part">
-                    Retirer la pièce
+                    ${t("drawer.uninstall")}
                 </button>
             </div>
         `;
     }
 
     if (options.length === 0) {
-        listHtml += `<div style="text-align:center; padding:2rem; color:var(--text-muted)">Aucun composant de ce type disponible dans votre inventaire.</div>`;
+        listHtml += `<div style="text-align:center; padding:2rem; color:var(--text-muted)">${t("drawer.empty")}</div>`;
     } else {
         listHtml += `
-            <div style="font-weight:700; font-size:0.8rem; color:var(--text-muted); margin-bottom:10px">Pièces en stock :</div>
+            <div style="font-weight:700; font-size:0.8rem; color:var(--text-muted); margin-bottom:10px">${t("drawer.stock")}</div>
             <div style="display:flex; flex-direction:column; gap:10px">
                 ${options.map(opt => {
                     const comp = getComponentById(opt.partId);
+                    const condLabel = opt.condition === "new" ? t("inventory.cond.new") : opt.condition === "used" ? t("inventory.cond.used") : t("inventory.cond.broken");
                     return `
                         <div class="part-card" style="padding:10px; flex-direction:row; justify-content:space-between; align-items:center">
                             <div>
                                 <div style="font-weight:600; font-size:0.85rem">${comp.name}</div>
-                                <div style="font-size:0.7rem; color:var(--text-secondary)">État : ${opt.condition === 'new' ? 'Neuf' : opt.condition === 'used' ? 'Occasion' : 'En Panne'}</div>
+                                <div style="font-size:0.7rem; color:var(--text-secondary)">${t("drawer.condition")} ${condLabel}</div>
                             </div>
-                            <button class="btn-buy" id="btn-install-part-${opt.id}">Installer</button>
+                            <button class="btn-buy" id="btn-install-part-${opt.id}">${t("drawer.btnInstall")}</button>
                         </div>
                     `;
                 }).join('')}
@@ -1212,7 +1236,9 @@ function putJobOnHoldFromWorkbench(job) {
     
     job.status = "on_hold";
     saveGame();
-    showToast(`Mission "${job.subject}" mise en attente. Le PC a été rangé en réserve.`, "info");
+    
+    const jobSubject = job.subjectKey ? t(job.subjectKey, job.textVars) : job.subject;
+    showToast(state.language === "en" ? `Mission "${jobSubject}" put on hold.` : `Mission "${jobSubject}" mise en attente. Le PC a été rangé en réserve.`, "info");
     
     renderWorkbenchTab();
 }
@@ -1228,16 +1254,16 @@ function openThermalPasteChoiceModal() {
 
     content.innerHTML = `
         <div class="panel-header">
-            <h2>Choix de la pâte thermique</h2>
+            <h2>${t("workbench.pasteModal.title")}</h2>
             <button class="os-window-close" id="btn-close-paste-modal">×</button>
         </div>
         <div class="modal-body" style="padding:1.5rem; display:flex; flex-direction:column; gap:12px; text-align:center">
-            <p style="font-size:0.85rem; color:var(--text-secondary)">Sélectionnez le type de pâte thermique à appliquer sur le processeur :</p>
+            <p style="font-size:0.85rem; color:var(--text-secondary)">${t("workbench.pasteModal.sub")}</p>
             <button class="btn-secondary" id="btn-apply-std-paste" style="width:100%">
-                Pâte Thermique Standard (Gratuit, Illimité)
+                ${t("workbench.pasteModal.std")}
             </button>
             <button class="btn-primary glow-btn" id="btn-apply-lm-paste" style="width:100%; background:linear-gradient(135deg, var(--color-purple), #90f)">
-                Métal Liquide Premium (Stock : ${state.liquidMetalCount} seringues)
+                ${t("workbench.pasteModal.lm", { count: state.liquidMetalCount })}
             </button>
         </div>
     `;
@@ -1267,9 +1293,9 @@ function openThermalPasteChoiceModal() {
             updateActiveJobsRequirements();
             overlay.remove();
             renderWorkbenchTab();
-            showToast("Métal Liquide Premium appliqué avec succès sur le CPU !", "success");
+            showToast(t("toast.liquidMetalApplied"), "success");
         } else {
-            showToast("Plus de seringues de Métal Liquide en stock !", "error");
+            showToast(t("toast.metalLiquidCountError"), "error");
         }
     });
 }

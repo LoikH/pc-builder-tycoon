@@ -5,6 +5,7 @@
 import { state, saveGame, generateUniqueId } from "../state.js";
 import { showToast } from "../main.js";
 import { getComponentById } from "../components.js";
+import { t } from "../translations.js";
 
 export function renderBargainBinTab() {
     const pane = document.getElementById("pane-bargainbin");
@@ -22,7 +23,7 @@ export function renderBargainBinTab() {
     buyPanel.style.padding = "1.5rem";
     buyPanel.style.overflowY = "auto";
     buyPanel.innerHTML = `
-        <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem; color:var(--color-cyan)">🔥 Offres en cours (Achats)</h2>
+        <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem; color:var(--color-cyan)">${t("bargain.buy.title")}</h2>
         <div style="display:flex; flex-direction:column; gap:1.2rem" id="bargain-listings"></div>
     `;
 
@@ -32,7 +33,7 @@ export function renderBargainBinTab() {
     sellPanel.style.padding = "1.5rem";
     sellPanel.style.overflowY = "auto";
     sellPanel.innerHTML = `
-        <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem; color:var(--color-purple)">📈 Mes PC en Vente (Flips)</h2>
+        <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem; color:var(--color-purple)">${t("bargain.sell.title")}</h2>
         <div style="display:flex; flex-direction:column; gap:1rem" id="my-listings"></div>
     `;
 
@@ -49,7 +50,7 @@ function populateBargainListings() {
     list.innerHTML = "";
 
     if (state.bargainBin.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding:3rem; color:var(--text-muted)">Aucune offre d'occasion aujourd'hui. Revenez demain !</div>`;
+        list.innerHTML = `<div style="text-align:center; padding:3rem; color:var(--text-muted)">${t("bargain.empty")}</div>`;
         return;
     }
 
@@ -67,20 +68,22 @@ function populateBargainListings() {
             }
         });
 
+        const categoryLabel = state.language === "en" ? "Used PC" : "PC d'occasion";
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                <span class="part-category text-amber">PC d'occasion</span>
+                <span class="part-category text-amber">${categoryLabel}</span>
                 <span class="part-price text-emerald">${item.price}$</span>
             </div>
             <div class="part-name" style="margin-top:5px; font-size:1.05rem">${item.name}</div>
             <p style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:8px">${item.description}</p>
             
             <div style="font-size:0.7rem; color:var(--text-muted); background:rgba(0,0,0,0.2); padding:6px; border-radius:4px; margin-bottom:12px">
-                <strong>Composants inclus :</strong> ${partsList.join(", ")}
+                <strong>${t("bargain.included")}</strong> ${partsList.join(", ")}
             </div>
 
             <button class="btn-primary glow-btn" style="width:100%" id="btn-buy-flip-${item.id}">
-                Acheter pour ${item.price}$
+                ${t("bargain.btnBuy")} ${item.price}$
             </button>
         `;
 
@@ -112,12 +115,14 @@ function buyFlipPC(item) {
         state.bargainBin = state.bargainBin.filter(i => i.id !== item.id);
         
         saveGame();
-        showToast(`PC "${item.name}" acheté ! Installez-le sur un établi libre depuis l'onglet Établi pour le réparer.`, "success");
+        
+        const tBought = state.language === "en" ? `PC "${item.name}" bought! Install it on a free workbench from the Workbench tab to repair it.` : `PC "${item.name}" acheté ! Installez-le sur un établi libre depuis l'onglet Établi pour le réparer.`;
+        showToast(tBought, "success");
         
         window.updateHud();
         renderBargainBinTab();
     } else {
-        showToast("Fonds insuffisants !", "error");
+        showToast(t("toast.fundsInsufficient"), "error");
     }
 }
 
@@ -131,8 +136,7 @@ function populateMyListings() {
     if (customListings.length === 0) {
         list.innerHTML = `
             <div style="text-align:center; padding:3rem; color:var(--text-muted)">
-                <p>Aucun ordinateur mis en vente.</p>
-                <small>Montez un PC libre sur un établi et mettez-le en vente pour générer du profit !</small>
+                <p>${t("bargain.noFlips")}</p>
             </div>
         `;
         return;
@@ -149,38 +153,43 @@ function populateMyListings() {
             if (offer.isFullPrice) {
                 offerHtml = `
                     <div style="background:rgba(0, 255, 136, 0.05); border:1px solid rgba(0, 255, 136, 0.2); border-radius:6px; padding:10px; margin-bottom:12px; margin-top:8px">
-                        <div style="font-weight:600; font-size:0.8rem; color:var(--text-emerald)">🟢 OFFRE D'ACHAT FERME</div>
+                        <div style="font-weight:600; font-size:0.8rem; color:var(--text-emerald)">${t("bargain.offer.firm")}</div>
                         <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px">
-                            <strong>${offer.buyerName}</strong> achète le PC au prix demandé de <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> !
+                            <strong>${offer.buyerName}</strong> ${t("bargain.offer.firmSub")} <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> !
                         </p>
                         <button class="btn-primary glow-btn" style="width:100%; margin-top:8px; background:linear-gradient(135deg, var(--color-emerald), #080); box-shadow:none; font-size:0.75rem; padding:5px" id="btn-accept-offer-${index}">
-                            Confirmer la vente
+                            ${t("bargain.offer.firmBtn")}
                         </button>
                     </div>
                 `;
             } else {
+                const offPercent = Math.round((1 - offer.offeredPrice / item.price) * 100);
+                const propLabel = state.language === "en" ? `offers you` : `vous propose`;
+                const askLabel = state.language === "en" ? "Asking" : "Demande";
+                const discountLabel = state.language === "en" ? "Discount" : "Rabais";
+
                 offerHtml = `
                     <div style="background:rgba(255, 170, 0, 0.05); border:1px solid rgba(255, 170, 0, 0.2); border-radius:6px; padding:10px; margin-bottom:12px; margin-top:8px" id="offer-container-${index}">
-                        <div style="font-weight:600; font-size:0.8rem; color:var(--color-amber)">🟡 PROPOSITION DE NÉGOCIATION</div>
+                        <div style="font-weight:600; font-size:0.8rem; color:var(--color-amber)">${t("bargain.offer.negotiation")}</div>
                         <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px">
-                            <strong>${offer.buyerName}</strong> vous propose <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> (Demande : ${item.price}$ - Rabais : ${Math.round((1 - offer.offeredPrice/item.price)*100)}%).
+                            <strong>${offer.buyerName}</strong> ${propLabel} <strong class="text-emerald font-mono">${offer.offeredPrice}$</strong> (${askLabel}: ${item.price}$ - ${discountLabel}: ${offPercent}%).
                         </p>
                         <div style="display:flex; gap:6px; margin-top:8px" id="offer-actions-${index}">
                             <button class="btn-primary glow-btn" style="flex:1; background:linear-gradient(135deg, var(--color-emerald), #080); box-shadow:none; font-size:0.7rem; padding:4px" id="btn-accept-offer-${index}">
-                                Accepter
+                                ${t("bargain.offer.accept")}
                             </button>
                             <button class="btn-secondary" style="flex:1; border-color:rgba(189,0,255,0.3); color:var(--color-purple); font-size:0.7rem; padding:4px" id="btn-counter-offer-${index}">
-                                Contre-proposer
+                                ${t("bargain.offer.counter")}
                             </button>
                             <button class="btn-secondary text-crimson" style="flex:1; border-color:rgba(255,0,85,0.15); font-size:0.7rem; padding:4px" id="btn-refuse-offer-${index}">
-                                Refuser
+                                ${t("bargain.offer.refuse")}
                             </button>
                         </div>
                         <div id="counter-form-${index}" style="display:none; flex-direction:column; gap:6px; margin-top:8px">
-                            <input type="number" id="input-counter-${index}" placeholder="Entrez votre prix ($)" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.75rem">
+                            <input type="number" id="input-counter-${index}" placeholder="${t("bargain.offer.counterTitle")}" style="background:#111; color:#fff; border:1px solid var(--border-color); padding:5px; border-radius:4px; font-size:0.75rem">
                             <div style="display:flex; gap:6px">
-                                <button class="btn-primary glow-btn" style="flex:1; font-size:0.7rem; padding:4px" id="btn-submit-counter-${index}">Valider</button>
-                                <button class="btn-secondary" style="flex:1; font-size:0.7rem; padding:4px" id="btn-cancel-counter-${index}">Annuler</button>
+                                <button class="btn-primary glow-btn" style="flex:1; font-size:0.7rem; padding:4px" id="btn-submit-counter-${index}">${t("bargain.offer.submit")}</button>
+                                <button class="btn-secondary" style="flex:1; font-size:0.7rem; padding:4px" id="btn-cancel-counter-${index}">${t("bargain.offer.cancel")}</button>
                             </div>
                         </div>
                     </div>
@@ -189,28 +198,30 @@ function populateMyListings() {
         } else {
             offerHtml = `
                 <div style="font-size:0.75rem; color:var(--text-muted); background:rgba(255,255,255,0.01); border:1px dashed var(--border-color); border-radius:6px; padding:8px; margin-top:8px; margin-bottom:12px; text-align:center">
-                    En attente d'acheteurs... (Transition de nuit requise)
+                    ${t("bargain.waiting")}
                 </div>
             `;
         }
 
+        const noneLabel = state.language === "en" ? "None" : "Aucun";
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                <span class="part-category text-purple">En vente</span>
+                <span class="part-category text-purple">${t("bargain.listed")}</span>
                 <span class="part-price text-emerald">${item.price}$</span>
             </div>
             <div class="part-name" style="margin-top:5px">${item.name}</div>
             
             <div class="part-specs">
-                <div class="part-spec-item"><span>Benchmark :</span><span class="text-cyan font-mono">${item.pc.score} Pts</span></div>
-                <div class="part-spec-item"><span>CPU :</span><span>${getComponentById(item.pc.cpu?.partId)?.name || 'Aucun'}</span></div>
-                <div class="part-spec-item"><span>GPU :</span><span>${getComponentById(item.pc.gpu?.partId)?.name || 'Aucun'}</span></div>
+                <div class="part-spec-item"><span>${t("bargain.specs.bench")}</span><span class="text-cyan font-mono">${item.pc.score} Pts</span></div>
+                <div class="part-spec-item"><span>CPU :</span><span>${getComponentById(item.pc.cpu?.partId)?.name || noneLabel}</span></div>
+                <div class="part-spec-item"><span>GPU :</span><span>${getComponentById(item.pc.gpu?.partId)?.name || noneLabel}</span></div>
             </div>
 
             ${offerHtml}
 
             <button class="btn-secondary text-crimson" style="width:100%; border-color:rgba(255,0,85,0.2)" id="btn-cancel-listing-${index}">
-                Retirer de la vente (Récupérer)
+                ${t("bargain.btnCancel")}
             </button>
         `;
 
@@ -249,7 +260,7 @@ function populateMyListings() {
                 document.getElementById(`btn-submit-counter-${index}`).addEventListener("click", () => {
                     const price = parseFloat(document.getElementById(`input-counter-${index}`).value);
                     if (isNaN(price) || price <= 0) {
-                        showToast("Veuillez saisir un prix valide !", "error");
+                        showToast(t("toast.enterValidPrice"), "error");
                         return;
                     }
                     submitCounterOffer(index, Math.round(price));
@@ -277,7 +288,8 @@ function cancelListing(idx) {
     state.customPcs.splice(idx, 1);
     
     saveGame();
-    showToast("Ordinateur retiré du marché BargainBin.", "info");
+    const tMsg = state.language === "en" ? "Computer retrieved from BargainBin market." : "Ordinateur retiré du marché BargainBin.";
+    showToast(tMsg, "info");
     renderBargainBinTab();
 }
 
@@ -292,7 +304,7 @@ function acceptOffer(idx) {
     state.customPcs.splice(idx, 1);
     
     saveGame();
-    showToast(`Félicitations ! PC vendu à ${offer.buyerName} pour ${offer.offeredPrice}$ !`, "success");
+    showToast(`${t("toast.flipSoldSuccess")} ${offer.buyerName} ${state.language === "en" ? "for" : "pour"} ${offer.offeredPrice}$ !`, "success");
     window.updateHud();
     renderBargainBinTab();
 }
@@ -302,7 +314,7 @@ function refuseOffer(idx) {
     listing.activeOffer = null; // buyer walks away
     
     saveGame();
-    showToast("Offre déclinée. L'acheteur s'en va.", "info");
+    showToast(t("toast.flipWalkAway"), "info");
     renderBargainBinTab();
 }
 
@@ -317,7 +329,7 @@ function submitCounterOffer(idx, counterPrice) {
         state.xp += 50;
         state.customPcs.splice(idx, 1);
         saveGame();
-        showToast(`L'acheteur accepte immédiatement cette contre-proposition ! Vendu pour ${counterPrice}$ !`, "success");
+        showToast(t("toast.counterAccept") + ` ${state.language === "en" ? "Sold for" : "Vendu pour"} ${counterPrice}$ !`, "success");
         window.updateHud();
         renderBargainBinTab();
         return;
@@ -328,7 +340,7 @@ function submitCounterOffer(idx, counterPrice) {
         // Offended reject
         listing.activeOffer = null;
         saveGame();
-        showToast("L'acheteur s'est senti offensé par votre proposition déraisonnable et a quitté la table des négociations !", "error");
+        showToast(t("toast.counterOffended"), "error");
         renderBargainBinTab();
         return;
     }
@@ -346,13 +358,17 @@ function submitCounterOffer(idx, counterPrice) {
         state.xp += 50;
         state.customPcs.splice(idx, 1);
         saveGame();
-        showToast(`Négociation réussie ! ${offer.buyerName} accepte votre contre-proposition de ${counterPrice}$ !`, "success");
+        
+        const tSuccess = state.language === "en" ? `Negotiation successful! ${offer.buyerName} accepts your counter-offer of ${counterPrice}$!` : `Négociation réussie ! ${offer.buyerName} accepte votre contre-proposition de ${counterPrice}$ !`;
+        showToast(tSuccess, "success");
         window.updateHud();
     } else {
         // Reject and leave
         listing.activeOffer = null;
         saveGame();
-        showToast(`${offer.buyerName} a refusé votre contre-proposition de ${counterPrice}$ et préfère chercher ailleurs.`, "warning");
+        
+        const tReject = state.language === "en" ? `${offer.buyerName} rejected your counter-offer of ${counterPrice}$ and left.` : `${offer.buyerName} a refusé votre contre-proposition de ${counterPrice}$ et préfère chercher ailleurs.`;
+        showToast(tReject, "warning");
     }
 
     renderBargainBinTab();

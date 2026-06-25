@@ -9,6 +9,7 @@ import { renderShopTab } from "./ui/shop.js";
 import { renderInventoryTab } from "./ui/inventory.js";
 import { renderBargainBinTab, resolveFlipSales } from "./ui/bargainbin.js";
 import { renderShowroomTab } from "./ui/showroom.js";
+import { t } from "./translations.js";
 
 // Active Tab tracking
 let activeTab = "emails";
@@ -104,6 +105,7 @@ function switchTab(tabId) {
 }
 
 export function showDailyEventModal() {
+    if (document.getElementById("daily-event-modal")) return;
     const event = state.currentEvent;
     if (!event) return;
 
@@ -117,20 +119,23 @@ export function showDailyEventModal() {
     content.style.border = "2px solid var(--color-purple)";
     content.style.boxShadow = "0 0 20px rgba(189, 0, 255, 0.2)";
 
+    const eventTitle = t(`event.${event.id}.title`);
+    const eventText = t(`event.${event.id}.text`);
+
     content.innerHTML = `
         <div class="panel-header" style="background:rgba(189, 0, 255, 0.1); border-bottom:1px solid rgba(189, 0, 255, 0.3)">
             <h2 style="color:var(--text-primary); display:flex; align-items:center; gap:8px">
-                📰 Tech News Flash
+                ${t("event.newsTitle")}
             </h2>
             <button class="os-window-close" id="btn-close-event-modal">×</button>
         </div>
         <div class="modal-body" style="padding:1.5rem; text-align:center; display:flex; flex-direction:column; gap:15px">
-            <h3 style="color:var(--color-amber); font-size:1.3rem; font-weight:700">${event.title}</h3>
+            <h3 style="color:var(--color-amber); font-size:1.3rem; font-weight:700">${eventTitle}</h3>
             <p style="font-size:0.95rem; line-height:1.6; color:var(--text-primary)">
-                ${event.text}
+                ${eventText}
             </p>
             <button class="btn-primary glow-btn" id="btn-ok-event-modal" style="width:100%; margin-top:10px">
-                Compris !
+                ${t("event.btnOk")}
             </button>
         </div>
     `;
@@ -184,6 +189,7 @@ function handleEndDay() {
 }
 
 export function showHelpModal() {
+    if (document.getElementById("game-help-modal")) return;
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     overlay.id = "game-help-modal";
@@ -198,46 +204,46 @@ export function showHelpModal() {
     content.innerHTML = `
         <div class="panel-header" style="background:rgba(189, 0, 255, 0.1); border-bottom:1px solid rgba(189, 0, 255, 0.3)">
             <h2 style="color:var(--text-primary); display:flex; align-items:center; gap:8px">
-                🖥️ PC Architect Tycoon - Scénario & Aide
+                ${t("help.title")}
             </h2>
             <button class="os-window-close" id="btn-close-help-modal">×</button>
         </div>
         <div class="modal-body" style="padding:1.5rem; overflow-y:auto; display:flex; flex-direction:column; gap:15px; font-size:0.88rem; line-height:1.5; text-align:left">
             <div>
-                <h3 style="color:var(--color-purple); font-size:1.05rem; font-weight:700; margin-bottom:5px">📖 Le Scénario</h3>
+                <h3 style="color:var(--color-purple); font-size:1.05rem; font-weight:700; margin-bottom:5px">${t("help.scenario.title")}</h3>
                 <p style="color:var(--text-secondary)">
-                    Vous commencez votre aventure en tant que jeune monteur de PC indépendant dans un modeste atelier cyberpunk. Votre objectif est de développer votre notoriété (Niveau d'XP), de fructifier votre budget, de débloquer de nouveaux composants de pointe et de bâtir l'atelier le plus renommé de la ville !
+                    ${t("help.scenario.text")}
                 </p>
             </div>
 
             <div style="border-top:1px dashed var(--border-color); padding-top:10px">
-                <h3 style="color:var(--color-cyan); font-size:1.05rem; font-weight:700; margin-bottom:8px">🎮 Mécaniques Clés du Jeu</h3>
+                <h3 style="color:var(--color-cyan); font-size:1.05rem; font-weight:700; margin-bottom:8px">${t("help.mechanics.title")}</h3>
                 <ul style="list-style-type:none; display:flex; flex-direction:column; gap:10px; padding-left:0">
                     <li>
-                        <strong>📧 Boîte de Réception (Contrats & Urgences) :</strong>
-                        <p style="color:var(--text-secondary); margin-top:2px">Lisez vos mails pour accepter des missions variées (virus, mises à niveau, diagnostics ou montages sur mesure). Attention aux contrats marqués <strong>🚨 Urgent 24h</strong> : ils expirent et s'annulent dès la fin de la journée si vous ne les livrez pas à temps !</p>
+                        <strong>${t("help.mechanics.inbox.title")}</strong>
+                        <p style="color:var(--text-secondary); margin-top:2px">${t("help.mechanics.inbox.text")}</p>
                     </li>
                     <li>
-                        <strong>🔧 Établi de Montage (Simulateur Matériel) :</strong>
-                        <p style="color:var(--text-secondary); margin-top:2px">Installez les pièces (Boîtier, Carte Mère, CPU, Cooler, RAM, GPU, PSU, Storage). Câblez la machine, appliquez de la pâte thermique (Standard ou <strong>Métal Liquide 🔥</strong>) et démarrez l'ordinateur. Installez le système d'exploitation et lancez le <strong>3D Benchmark</strong> sous <strong>VirtualOS</strong> pour valider les performances !</p>
+                        <strong>${t("help.mechanics.workbench.title")}</strong>
+                        <p style="color:var(--text-secondary); margin-top:2px">${t("help.mechanics.workbench.text")}</p>
                     </li>
                     <li>
-                        <strong>🛒 Boutique de Pièces (Fluctuations du Marché) :</strong>
-                        <p style="color:var(--text-secondary); margin-top:2px">Commandez vos composants en livraison Standard (1 jour) ou Express (instantané). Restez à l'affût des <strong>Tech News 📰</strong> du matin : des crises mondiales de silicium, des inondations ou le Black Friday feront fluctuer drastiquement les prix du marché !</p>
+                        <strong>${t("help.mechanics.shop.title")}</strong>
+                        <p style="color:var(--text-secondary); margin-top:2px">${t("help.mechanics.shop.text")}</p>
                     </li>
                     <li>
-                        <strong>🔄 BargainBin & Négociations :</strong>
-                        <p style="color:var(--text-secondary); margin-top:2px">Achetez des PC en panne à bas coût, réparez-les, et revendez-les (flips). Vous recevrez des offres d'achat fermes ou des propositions de négociation le matin. Libre à vous d'accepter, de refuser, ou de contre-proposer un prix au plus juste !</p>
+                        <strong>${t("help.mechanics.bargain.title")}</strong>
+                        <p style="color:var(--text-secondary); margin-top:2px">${t("help.mechanics.bargain.text")}</p>
                     </li>
                     <li>
-                        <strong>🏆 Showroom de Prestige :</strong>
-                        <p style="color:var(--text-secondary); margin-top:2px">Exposez vos PC libres aux scores de benchmark légendaires. Votre prestige cumulé débloque des sponsors officiels et vous offre des <strong>remises permanentes cumulables (jusqu'à -20%)</strong> sur toutes les pièces de la boutique !</p>
+                        <strong>${t("help.mechanics.showroom.title")}</strong>
+                        <p style="color:var(--text-secondary); margin-top:2px">${t("help.mechanics.showroom.text")}</p>
                     </li>
                 </ul>
             </div>
 
             <button class="btn-primary glow-btn" id="btn-ok-help-modal" style="width:100%; margin-top:10px">
-                C'est parti !
+                ${t("help.btnOk")}
             </button>
         </div>
     `;
@@ -330,6 +336,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Reset game click with beautiful confirm prompt
     document.getElementById("btn-reset-game").addEventListener("click", () => {
+        if (document.getElementById("reset-confirm-modal")) return;
+
         const overlay = document.createElement("div");
         overlay.className = "modal-overlay";
         overlay.id = "reset-confirm-modal";
@@ -342,20 +350,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         content.innerHTML = `
             <div class="panel-header" style="background:rgba(255, 0, 85, 0.1); border-bottom:1px solid rgba(255, 0, 85, 0.3)">
-                <h2 style="color:var(--text-primary)">⚠️ Réinitialiser la Partie ?</h2>
+                <h2 style="color:var(--text-primary)">${t("reset.title")}</h2>
                 <button class="os-window-close" id="btn-close-reset-modal">×</button>
             </div>
             <div class="modal-body" style="padding:1.5rem; text-align:center; display:flex; flex-direction:column; gap:12px">
                 <p style="font-size:0.88rem; line-height:1.5; color:var(--text-primary)">
-                    Êtes-vous certain de vouloir réinitialiser complètement votre partie ?<br><br>
-                    <strong style="color:var(--color-crimson)">Cette action effacera définitivement toute votre progression actuelle (Cash, Niveau, Inventaire, Showroom) !</strong>
+                    ${t("reset.text")}
                 </p>
                 <div style="display:flex; gap:10px; margin-top:10px">
                     <button class="btn-primary glow-btn" id="btn-confirm-reset" style="flex:1; background:linear-gradient(135deg, var(--color-crimson), #c00); box-shadow:none">
-                        Oui, tout effacer
+                        ${t("reset.btnYes")}
                     </button>
                     <button class="btn-secondary" id="btn-cancel-reset" style="flex:1">
-                        Annuler
+                        ${t("reset.btnNo")}
                     </button>
                 </div>
             </div>
@@ -368,19 +375,39 @@ document.addEventListener("DOMContentLoaded", () => {
             overlay.remove();
         };
 
-        document.getElementById("btn-close-reset-modal").addEventListener("click", closeFn);
-        document.getElementById("btn-cancel-reset").addEventListener("click", closeFn);
-        document.getElementById("btn-confirm-reset").addEventListener("click", () => {
+        content.querySelector("#btn-close-reset-modal").addEventListener("click", closeFn);
+        content.querySelector("#btn-cancel-reset").addEventListener("click", closeFn);
+        content.querySelector("#btn-confirm-reset").addEventListener("click", () => {
             localStorage.removeItem("pc_architect_tycoon_save");
             overlay.remove();
-            showToast("Partie réinitialisée ! Rechargement...", "success");
+            showToast(t("toast.gameReset"), "success");
             setTimeout(() => {
                 window.location.reload();
             }, 500);
         });
     });
 
-    // Load default home tab
+    // Language click handlers
+    document.getElementById("btn-lang-fr").addEventListener("click", () => {
+        state.language = "fr";
+        saveGame();
+        applyTranslations();
+        updateHud();
+        switchTab(activeTab);
+        showToast("Langue réglée sur Français !", "success");
+    });
+
+    document.getElementById("btn-lang-en").addEventListener("click", () => {
+        state.language = "en";
+        saveGame();
+        applyTranslations();
+        updateHud();
+        switchTab(activeTab);
+        showToast("Language set to English!", "success");
+    });
+
+    // Load default home tab & initial translation pass
+    applyTranslations();
     switchTab("emails");
 
     // Welcome notice & Daily Event modal / Help modal on first load
@@ -388,8 +415,56 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!state.hasSeenIntro) {
             showHelpModal();
         } else {
-            showToast("Bienvenue dans PC Architect Tycoon ! Consultez votre boîte de réception d'e-mails pour accepter vos premiers contrats.", "success");
+            showToast(t("toast.welcome"), "success");
             showDailyEventModal();
         }
     }, 1000);
 });
+
+export function applyTranslations() {
+    // 1. Sidebar Nav items
+    document.querySelector('[data-tab="emails"] .nav-text').textContent = t("nav.emails");
+    document.querySelector('[data-tab="workbench"] .nav-text').textContent = t("nav.workbench");
+    document.querySelector('[data-tab="shop"] .nav-text').textContent = t("nav.shop");
+    document.querySelector('[data-tab="inventory"] .nav-text').textContent = t("nav.inventory");
+    document.querySelector('[data-tab="bargainbin"] .nav-text').textContent = t("nav.bargainbin");
+    document.querySelector('[data-tab="showroom"] .nav-text').textContent = t("nav.showroom");
+
+    // 2. Options buttons
+    document.getElementById("btn-show-help").textContent = t("nav.help");
+    document.getElementById("btn-export-save").textContent = t("nav.export");
+    document.getElementById("btn-import-save").textContent = t("nav.import");
+    document.getElementById("btn-reset-game").textContent = t("nav.reset");
+
+    // 3. HUD labels
+    document.querySelector(".level-box .stat-label").textContent = t("hud.level");
+    document.querySelector(".money-box .stat-label").textContent = t("hud.budget");
+    document.querySelector(".day-box .stat-label").textContent = t("hud.day");
+    
+    // 4. End Day button
+    const endDayBtn = document.getElementById("btn-next-day");
+    endDayBtn.querySelector("span").textContent = t("hud.endDay");
+    endDayBtn.querySelector("small").textContent = t("hud.endDaySub");
+
+    // 5. Highlight active language button
+    const lang = state.language || "fr";
+    const frBtn = document.getElementById("btn-lang-fr");
+    const enBtn = document.getElementById("btn-lang-en");
+    if (frBtn && enBtn) {
+        if (lang === "fr") {
+            frBtn.classList.add("active");
+            frBtn.style.borderColor = "var(--color-cyan)";
+            frBtn.style.color = "var(--color-cyan)";
+            enBtn.classList.remove("active");
+            enBtn.style.borderColor = "";
+            enBtn.style.color = "";
+        } else {
+            enBtn.classList.add("active");
+            enBtn.style.borderColor = "var(--color-cyan)";
+            enBtn.style.color = "var(--color-cyan)";
+            frBtn.classList.remove("active");
+            frBtn.style.borderColor = "";
+            frBtn.style.color = "";
+        }
+    }
+}
